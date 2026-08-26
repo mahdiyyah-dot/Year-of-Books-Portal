@@ -1,0 +1,324 @@
+/* Leaderboards Page Styling */
+
+/* Top 3 Podium Displays */
+.podium-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 24px 10px;
+  background: linear-gradient(180deg, rgba(113, 63, 152, 0.03) 0%, rgba(113, 63, 152, 0) 100%);
+  border-radius: var(--radius-lg);
+  margin-bottom: 20px;
+}
+
+.podium-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  text-align: center;
+  transition: var(--transition);
+}
+
+.podium-column:hover {
+  transform: translateY(-4px);
+}
+
+.podium-avatar-wrapper {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.podium-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 800;
+  color: white;
+  border: 3px solid white;
+  box-shadow: var(--shadow-md);
+}
+
+.podium-rank-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-full);
+  background-color: var(--accent-gold);
+  color: var(--text-main);
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+  border: 2px solid white;
+}
+
+.podium-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dark-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+}
+
+.podium-subtext {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+}
+
+.podium-score {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--accent-pink);
+  margin-top: 4px;
+}
+
+/* Specific heights and scales for podium spots */
+.podium-first {
+  order: 2;
+}
+.podium-first .podium-avatar {
+  width: 76px;
+  height: 76px;
+  font-size: 26px;
+  border-color: var(--accent-gold);
+  box-shadow: 0 8px 24px rgba(252, 185, 19, 0.25);
+}
+.podium-first .podium-rank-badge {
+  width: 26px;
+  height: 26px;
+  font-size: 13px;
+  background-color: var(--accent-gold);
+}
+
+.podium-second {
+  order: 1;
+}
+.podium-second .podium-avatar {
+  width: 64px;
+  height: 64px;
+  font-size: 22px;
+  border-color: var(--secondary);
+}
+.podium-second .podium-rank-badge {
+  background-color: #CFD8DC;
+  color: #37474F;
+}
+
+.podium-third {
+  order: 3;
+}
+.podium-third .podium-avatar {
+  width: 60px;
+  height: 60px;
+  font-size: 20px;
+  border-color: var(--accent-pink);
+}
+.podium-third .podium-rank-badge {
+  background-color: #FFCCBC;
+  color: #D84315;
+}
+
+
+/* Leaderboard List Row */
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-card);
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  transition: var(--transition-fast);
+}
+
+.leaderboard-row:hover {
+  border-color: var(--primary-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateX(2px);
+}
+
+.leaderboard-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  min-width: 0; /* Enables ellipsis on child flex nodes */
+}
+
+.leaderboard-rank {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-muted);
+  width: 24px;
+  text-align: center;
+}
+
+.leaderboard-rank-top {
+  color: var(--primary);
+  font-size: 16px;
+}
+
+.leaderboard-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: white;
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.leaderboard-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.leaderboard-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboard-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboard-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 12px;
+}
+
+.leaderboard-score-pill {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  font-weight: 800;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  min-width: 60px;
+  text-align: center;
+}
+
+.leaderboard-row:nth-child(1) .leaderboard-score-pill {
+  background-color: var(--accent-gold-light);
+  color: #B27D00;
+}
+
+/* Tab Filters (e.g. Students vs Study Centres) */
+.tab-filter-container {
+  display: flex;
+  background-color: var(--primary-light);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+}
+
+.tab-filter-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--primary);
+  cursor: pointer;
+  border-radius: calc(var(--radius-md) - 2px);
+  transition: var(--transition-fast);
+  text-align: center;
+}
+
+.tab-filter-btn-active {
+  background-color: var(--bg-card);
+  color: var(--dark-text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Search Box wrapper */
+.search-container {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.search-input {
+  padding-left: 40px;
+}
+
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 16px;
+  pointer-events: none;
+}
+
+/* Multi-select Month/Class filters row */
+.filter-row-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 16px;
+  scrollbar-width: none; /* Hide scrollbar for clean look */
+}
+
+.filter-row-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-pill {
+  white-space: nowrap;
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.filter-pill-active {
+  background-color: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}

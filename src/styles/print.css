@@ -1,0 +1,190 @@
+/* Print-Friendly Stylesheet for Program Reports */
+
+@media print {
+  /* Hide all interactive and UI elements */
+  .dashboard-header,
+  .mobile-nav-bar,
+  .btn,
+  .selector-row,
+  .toggle-switch-container,
+  .floating-action-container,
+  .search-container,
+  .tab-filter-container,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset body styles for paper */
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 12pt;
+    line-height: 1.5;
+    padding: 0;
+    margin: 0;
+  }
+
+  .container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Report Layout */
+  .print-report-header {
+    text-align: center;
+    border-bottom: 2px solid #000000;
+    padding-bottom: 12px;
+    margin-bottom: 24px;
+  }
+
+  .print-report-title {
+    font-size: 20pt;
+    font-weight: 800;
+    color: #000000;
+  }
+
+  .print-report-meta {
+    font-size: 11pt;
+    color: #555555;
+    margin-top: 6px;
+    display: flex;
+    justify-content: space-around;
+  }
+
+  .print-program-card {
+    border: 1px solid #dddddd;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 24px;
+    page-break-inside: avoid; /* Prevent program card splitting across pages */
+    background: none !important;
+    box-shadow: none !important;
+  }
+
+  .print-program-title {
+    font-size: 14pt;
+    font-weight: 700;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #eeeeee;
+    padding-bottom: 4px;
+  }
+
+  .print-program-meta {
+    font-size: 9pt;
+    color: #666666;
+    margin-bottom: 10px;
+    font-style: italic;
+  }
+
+  .print-program-desc {
+    font-size: 10pt;
+    margin-bottom: 16px;
+    text-align: justify;
+  }
+
+  /* Print Photos Grid */
+  .print-photos-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    page-break-inside: avoid;
+  }
+
+  .print-photo-wrapper {
+    border: 1px solid #eeeeee;
+    border-radius: 4px;
+    overflow: hidden;
+    height: 150pt;
+  }
+
+  .print-photo-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+}
+
+/* Screen Preview Styles for the Printable Page (helps Admin view it nicely before printing) */
+@media screen {
+  .print-page-preview {
+    background-color: #ffffff;
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 40px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-md);
+  }
+
+  .print-report-header {
+    text-align: center;
+    border-bottom: 2px solid var(--primary);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+  }
+
+  .print-report-title {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--dark-text);
+  }
+
+  .print-report-meta {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  .print-program-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-bottom: 20px;
+    background-color: var(--bg-card);
+  }
+
+  .print-program-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 4px;
+  }
+
+  .print-program-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+    font-style: italic;
+  }
+
+  .print-program-desc {
+    font-size: 14px;
+    color: var(--text-main);
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+
+  .print-photos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+  }
+
+  .print-photo-wrapper {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    aspect-ratio: 4/3;
+  }
+
+  .print-photo-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
