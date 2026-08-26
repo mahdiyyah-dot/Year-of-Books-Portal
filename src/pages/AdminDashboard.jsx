@@ -491,7 +491,10 @@ function AdminDashboard({ user, onLogout }) {
 
   // Generate Matrix data of upload progress
   const fetchStatusMatrix = async () => {
-    if (studyCentres.length === 0) return;
+    if (studyCentres.length === 0) {
+      setMatrixData([]);
+      return;
+    }
     try {
       setLoadingMatrix(true);
 
