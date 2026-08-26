@@ -6,16 +6,16 @@
 -- Enable extensions
 create extension if not exists "uuid-ossp";
 
--- Clean up existing tables if rebuilding (optional, commented out)
--- drop table if exists program_photos cascade;
--- drop table if exists program_reports cascade;
--- drop table if exists points cascade;
--- drop table if exists students cascade;
--- drop table if exists study_centres cascade;
--- drop table if exists system_settings cascade;
+-- Clean up existing tables before rebuilding (drops everything cleanly)
+drop table if exists program_photos cascade;
+drop table if exists program_reports cascade;
+drop table if exists points cascade;
+drop table if exists students cascade;
+drop table if exists study_centres cascade;
+drop table if exists system_settings cascade;
 
 -- 1. SYSTEM SETTINGS
-create table system_settings (
+create table if not exists system_settings (
   key text primary key,
   value jsonb not null
 );
@@ -29,7 +29,7 @@ on conflict (key) do nothing;
 
 
 -- 2. STUDY CENTRES
-create table study_centres (
+create table if not exists study_centres (
   id uuid references auth.users on delete cascade primary key,
   code text unique not null,
   name text not null,
@@ -44,7 +44,7 @@ create table study_centres (
 
 
 -- 3. STUDENTS
-create table students (
+create table if not exists students (
   id uuid default gen_random_uuid() primary key,
   register_number text unique not null,
   name text not null,
@@ -55,7 +55,7 @@ create table students (
 
 
 -- 4. POINTS
-create table points (
+create table if not exists points (
   id uuid default gen_random_uuid() primary key,
   student_id uuid references students(id) on delete cascade not null,
   month text not null, -- Format: YYYY-MM
@@ -67,7 +67,7 @@ create table points (
 
 
 -- 5. PROGRAM REPORTS
-create table program_reports (
+create table if not exists program_reports (
   id uuid default gen_random_uuid() primary key,
   study_centre_code text references study_centres(code) on delete cascade not null,
   month text not null, -- Format: YYYY-MM
@@ -79,7 +79,7 @@ create table program_reports (
 
 
 -- 6. PROGRAM PHOTOS
-create table program_photos (
+create table if not exists program_photos (
   id uuid default gen_random_uuid() primary key,
   report_id uuid references program_reports(id) on delete cascade not null,
   photo_url text not null,
