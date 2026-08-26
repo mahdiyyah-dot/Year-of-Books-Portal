@@ -1431,7 +1431,6 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
         </div>
       )}
     </div>
-    </div>
   );
 }
 
