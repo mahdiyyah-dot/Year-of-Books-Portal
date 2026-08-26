@@ -362,6 +362,8 @@ function AdminDashboard({ user, onLogout }) {
       const userUuid = existing?.id || generateUUID();
       const email = `${username.toLowerCase()}@yob.portal`;
 
+      let finalUuidVal = null;
+      let rpcErrorVal = null;
       try {
         // Create or synchronize the login auth account and get the correct UUID
         const { data: finalUuid, error: rpcErr } = await supabase.rpc('create_auth_user', {
@@ -370,6 +372,10 @@ function AdminDashboard({ user, onLogout }) {
           p_password: password,
           p_username: username
         });
+        
+        finalUuidVal = finalUuid;
+        rpcErrorVal = rpcErr;
+        
         if (rpcErr) throw rpcErr;
 
         // Insert / Update the public profile record using the correct UUID returned by the function
@@ -388,7 +394,7 @@ function AdminDashboard({ user, onLogout }) {
         successCount++;
       } catch (err) {
         console.error(`Error importing centre ${name}:`, err);
-        errorsList.push(`Centre "${name || code}": ${err.message || JSON.stringify(err)}`);
+        errorsList.push(`Centre "${name || code}": ${err.message || JSON.stringify(err)} (UUID: ${finalUuidVal || 'null'}, rpcErr: ${rpcErrorVal ? (rpcErrorVal.message || JSON.stringify(rpcErrorVal)) : 'none'})`);
         skippedCount++;
       }
     }
