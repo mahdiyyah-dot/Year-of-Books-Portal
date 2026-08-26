@@ -51,6 +51,14 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   const [newStudentClass, setNewStudentClass] = useState('M1');
   const [addingStudent, setAddingStudent] = useState(false);
 
+  // Manual Edit Student States
+  const [showEditStudentModal, setShowEditStudentModal] = useState(false);
+  const [selectedStudentToEdit, setSelectedStudentToEdit] = useState(null);
+  const [editStudentName, setEditStudentName] = useState('');
+  const [editStudentReg, setEditStudentReg] = useState('');
+  const [editStudentClass, setEditStudentClass] = useState('M1');
+  const [savingStudentEdit, setSavingStudentEdit] = useState(false);
+
   // Points State
   const [students, setStudents] = useState([]);
   const [pointsData, setPointsData] = useState({}); // studentId -> point string value
@@ -265,6 +273,76 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       alert('Error registering student: ' + err.message);
     } finally {
       setAddingStudent(false);
+    }
+  };
+
+  const handleOpenEditModal = (student) => {
+    setSelectedStudentToEdit(student);
+    setEditStudentName(student.name);
+    setEditStudentReg(student.register_number);
+    setEditStudentClass(student.class);
+    setShowEditStudentModal(true);
+  };
+
+  const handleUpdateStudent = async (e) => {
+    e.preventDefault();
+    if (!selectedStudentToEdit) return;
+    if (!editStudentName.trim() || !editStudentReg.trim()) {
+      alert('Please fill in all fields.');
+      return;
+    }
+
+    try {
+      setSavingStudentEdit(true);
+      const { error } = await supabase
+        .from('students')
+        .update({
+          name: editStudentName.trim(),
+          register_number: editStudentReg.trim(),
+          class: editStudentClass
+        })
+        .eq('id', selectedStudentToEdit.id);
+
+      if (error) throw error;
+
+      alert(`Student details updated successfully!`);
+      setShowEditStudentModal(false);
+      setSelectedStudentToEdit(null);
+      
+      // Refresh roster
+      fetchStudentsAndPoints();
+    } catch (err) {
+      alert('Error updating student: ' + err.message);
+    } finally {
+      setSavingStudentEdit(false);
+    }
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!selectedStudentToEdit) return;
+    
+    const confirmDelete = window.confirm(`WARNING: This will permanently delete student "${selectedStudentToEdit.name}" and all of their point records. This cannot be undone. Are you sure you want to delete?`);
+    if (!confirmDelete) return;
+
+    try {
+      setSavingStudentEdit(true);
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', selectedStudentToEdit.id);
+
+      if (error) throw error;
+
+      alert(`Student deleted successfully.`);
+      setShowEditStudentModal(false);
+      setSelectedStudentToEdit(null);
+      
+      // Refresh roster
+      fetchStudentsAndPoints();
+    } catch (err) {
+      alert('Error deleting student: ' + err.message);
+    } finally {
+      setSavingStudentEdit(false);
     }
   };
 
@@ -762,7 +840,18 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                           {getInitials(student.name)}
                         </div>
                         <div className="student-name-box">
-                          <span className="student-name">{student.name}</span>
+                          <span className="student-name" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {student.name}
+                            {windowOpen && (
+                              <button 
+                                onClick={() => handleOpenEditModal(student)} 
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', fontSize: '11px', lineHeight: '1', opacity: '0.6' }}
+                                title="Edit Student Details"
+                              >
+                                ✏️
+                              </button>
+                            )}
+                          </span>
                           <span className="student-reg">{student.register_number}</span>
                         </div>
                       </div>
@@ -1252,6 +1341,96 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
           </div>
         </div>
       )}
+
+      {/* Modal Overlay for Editing Student */}
+      {showEditStudentModal && selectedStudentToEdit && (
+        <div className="modal-backdrop animate-fade" onClick={() => {
+          setShowEditStudentModal(false);
+          setSelectedStudentToEdit(null);
+        }}>
+          <div className="modal-card animate-slide" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '800', color: 'var(--primary)' }}>
+              ✏️ Edit Student Details
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Update details or remove this student registration from the portal.
+            </p>
+            
+            <form onSubmit={handleUpdateStudent}>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Register Number</label>
+                <input 
+                  type="text" 
+                  value={editStudentReg}
+                  onChange={(e) => setEditStudentReg(e.target.value)}
+                  required 
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Student Name</label>
+                <input 
+                  type="text" 
+                  value={editStudentName}
+                  onChange={(e) => setEditStudentName(e.target.value)}
+                  required 
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Assigned Class</label>
+                <select 
+                  value={editStudentClass} 
+                  onChange={(e) => setEditStudentClass(e.target.value)}
+                  required
+                >
+                  <option value="M1">Class M1</option>
+                  <option value="M2">Class M2</option>
+                  <option value="M3">Class M3</option>
+                  <option value="M4">Class M4</option>
+                  <option value="M5">Class M5</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-pink" 
+                  onClick={handleDeleteStudent}
+                  style={{ padding: '10px 16px', fontSize: '13px', backgroundColor: 'rgba(208, 31, 130, 0.1)', color: 'var(--accent-pink)' }}
+                  disabled={savingStudentEdit}
+                >
+                  🗑️ Delete
+                </button>
+                
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-secondary" 
+                    onClick={() => {
+                      setShowEditStudentModal(false);
+                      setSelectedStudentToEdit(null);
+                    }}
+                    style={{ padding: '10px 16px', fontSize: '13px' }}
+                    disabled={savingStudentEdit}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary"
+                    style={{ padding: '10px 20px', fontSize: '13px' }}
+                    disabled={savingStudentEdit}
+                  >
+                    {savingStudentEdit ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 }
