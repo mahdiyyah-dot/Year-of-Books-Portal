@@ -293,11 +293,21 @@ function AdminDashboard({ user, onLogout }) {
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const rows = XLSX.utils.sheet_to_json(ws);
+        const rawRows = XLSX.utils.sheet_to_json(ws);
 
-        if (rows.length === 0) {
+        if (rawRows.length === 0) {
           throw new Error('The uploaded Excel sheet contains no rows.');
         }
+
+        // Normalize row keys to strip BOM (\uFEFF) and trim whitespace
+        const rows = rawRows.map(row => {
+          const cleanRow = {};
+          for (const key of Object.keys(row)) {
+            const cleanKey = key.replace(/^\uFEFF/, '').trim();
+            cleanRow[cleanKey] = row[key];
+          }
+          return cleanRow;
+        });
 
         if (importType === 'centres') {
           await processStudyCentres(rows);
@@ -319,6 +329,7 @@ function AdminDashboard({ user, onLogout }) {
   const processStudyCentres = async (rows) => {
     let successCount = 0;
     let skippedCount = 0;
+    const errorsList = [];
 
     for (const row of rows) {
       const code = row['Study Centre Code']?.toString().trim();
@@ -330,6 +341,14 @@ function AdminDashboard({ user, onLogout }) {
 
       if (!code || !name || !place || !district || !username || !password) {
         skippedCount++;
+        const missingFields = [];
+        if (!code) missingFields.push('Study Centre Code');
+        if (!name) missingFields.push('Study Centre Name');
+        if (!place) missingFields.push('Place');
+        if (!district) missingFields.push('District');
+        if (!username) missingFields.push('Username');
+        if (!password) missingFields.push('Password');
+        errorsList.push(`Row ${successCount + skippedCount}: Missing columns: ${missingFields.join(', ')}`);
         continue;
       }
 
@@ -371,14 +390,22 @@ function AdminDashboard({ user, onLogout }) {
         successCount++;
       } catch (err) {
         console.error(`Error importing centre ${name}:`, err);
+        errorsList.push(`Centre "${name || code}": ${err.message || JSON.stringify(err)}`);
         skippedCount++;
       }
     }
 
-    setImportMsg({
-      text: `Successfully imported ${successCount} study centres. (Skipped/Failed: ${skippedCount})`,
-      type: 'success'
-    });
+    if (errorsList.length > 0) {
+      setImportMsg({
+        text: `Imported ${successCount} study centres. (Skipped/Failed: ${skippedCount}). Details: ${errorsList.slice(0, 3).join(' | ')}`,
+        type: successCount > 0 ? 'warning' : 'error'
+      });
+    } else {
+      setImportMsg({
+        text: `Successfully imported all ${successCount} study centres.`,
+        type: 'success'
+      });
+    }
     fetchStudyCentres();
   };
 
@@ -386,6 +413,7 @@ function AdminDashboard({ user, onLogout }) {
   const processStudents = async (rows) => {
     const studentRecords = [];
     let skippedCount = 0;
+    const errorsList = [];
 
     for (const row of rows) {
       const regNum = row['Register Number']?.toString().trim();
@@ -400,6 +428,12 @@ function AdminDashboard({ user, onLogout }) {
 
       if (!regNum || !name || !sClass || !scCode) {
         skippedCount++;
+        const missingFields = [];
+        if (!regNum) missingFields.push('Register Number');
+        if (!name) missingFields.push('Student Name');
+        if (!sClass) missingFields.push('Class');
+        if (!scCode) missingFields.push('Study Centre Code');
+        errorsList.push(`Row ${studentRecords.length + skippedCount}: Missing fields: ${missingFields.join(', ')}`);
         continue;
       }
 
@@ -412,6 +446,7 @@ function AdminDashboard({ user, onLogout }) {
       // Enforce class constraint
       if (!['M1', 'M2', 'M3', 'M4', 'M5'].includes(sClass)) {
         skippedCount++;
+        errorsList.push(`Student "${name}": Invalid class category "${sClass}" (Must be M1-M5)`);
         continue;
       }
 
@@ -423,23 +458,37 @@ function AdminDashboard({ user, onLogout }) {
       });
     }
 
-    if (studentRecords.length > 0) {
-      // Chunk upserts to prevent database payload limits (chunks of 200)
-      const chunkSize = 200;
-      for (let i = 0; i < studentRecords.length; i += chunkSize) {
-        const chunk = studentRecords.slice(i, i + chunkSize);
-        const { error } = await supabase
-          .from('students')
-          .upsert(chunk, { onConflict: 'register_number' });
+    try {
+      if (studentRecords.length > 0) {
+        // Chunk upserts to prevent database payload limits (chunks of 200)
+        const chunkSize = 200;
+        for (let i = 0; i < studentRecords.length; i += chunkSize) {
+          const chunk = studentRecords.slice(i, i + chunkSize);
+          const { error } = await supabase
+            .from('students')
+            .upsert(chunk, { onConflict: 'register_number' });
 
-        if (error) throw error;
+          if (error) throw error;
+        }
       }
-    }
 
-    setImportMsg({
-      text: `Successfully imported ${studentRecords.length} students. (Skipped: ${skippedCount})`,
-      type: 'success'
-    });
+      if (errorsList.length > 0) {
+        setImportMsg({
+          text: `Successfully imported ${studentRecords.length} students. (Skipped/Failed: ${skippedCount}). Details: ${errorsList.slice(0, 3).join(' | ')}`,
+          type: studentRecords.length > 0 ? 'warning' : 'error'
+        });
+      } else {
+        setImportMsg({
+          text: `Successfully imported all ${studentRecords.length} students.`,
+          type: 'success'
+        });
+      }
+    } catch (err) {
+      setImportMsg({
+        text: `Student import failed: ${err.message}`,
+        type: 'error'
+      });
+    }
   };
 
   // Generate Matrix data of upload progress
