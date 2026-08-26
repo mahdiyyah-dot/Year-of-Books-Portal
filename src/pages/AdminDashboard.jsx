@@ -45,6 +45,7 @@ function AdminDashboard({ user, onLogout }) {
   const [importType, setImportType] = useState('centres');
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState({ text: '', type: '' });
+  const [importStudentClass, setImportStudentClass] = useState('ALL'); // 'ALL', 'M1', 'M2', 'M3', 'M4', 'M5'
 
   // Status Matrix states
   const [matrixData, setMatrixData] = useState([]);
@@ -181,6 +182,102 @@ function AdminDashboard({ user, onLogout }) {
     }
   };
 
+  // Programmatic generation of sample CSV file templates for download
+  const downloadSampleFile = (type) => {
+    let content = "";
+    let filename = "";
+    if (type === 'centres') {
+      content = "Study Centre Code,Study Centre Name,Place,District,Username,Password\n" +
+                "YOB-001,Mahdiyyah Study Centre Calicut,Calicut,Kozhikode,centre_calicut,Calicut@123\n" +
+                "YOB-002,Mahdiyyah Study Centre Malappuram,Malappuram,Malappuram,centre_malappuram,Malappuram@123\n" +
+                "YOB-003,Mahdiyyah Study Centre Thrissur,Thrissur,Thrissur,centre_thrissur,Thrissur@123\n";
+      filename = "sample_study_centres.csv";
+    } else {
+      content = "Register Number,Student Name,Class,Study Centre Code,Study Centre Name\n" +
+                "2024-YOB-001,Fathima Rashida K,M1,YOB-001,Mahdiyyah Study Centre Calicut\n" +
+                "2024-YOB-002,Aisha Siddiqua P,M2,YOB-001,Mahdiyyah Study Centre Calicut\n" +
+                "2024-YOB-003,Mariyam Noor T,M3,YOB-001,Mahdiyyah Study Centre Calicut\n" +
+                "2024-YOB-004,Zainab Firdous A,M4,YOB-001,Mahdiyyah Study Centre Calicut\n" +
+                "2024-YOB-005,Hafsa Beevi M,M5,YOB-001,Mahdiyyah Study Centre Calicut\n";
+      filename = "sample_students.csv";
+    }
+    
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Handler: Delete/Wipe database tables for data cleanup
+  const handleDeleteData = async () => {
+    const deleteType = document.getElementById('delete-data-type')?.value;
+    if (!deleteType) return;
+
+    let confirmMsg = "";
+    let actionType = "";
+    let targetClass = "";
+
+    if (deleteType === 'students_all') {
+      confirmMsg = "This will permanently delete ALL students and all of their point records. Type 'WIPE' to confirm:";
+      actionType = 'students_all';
+    } else if (deleteType.startsWith('students_m')) {
+      targetClass = deleteType.replace('students_', '').toUpperCase();
+      confirmMsg = `This will permanently delete all students in Class ${targetClass} and their point records. Type 'WIPE' to confirm:`;
+      actionType = 'students_class';
+    } else if (deleteType === 'centres_all') {
+      confirmMsg = "DANGER: This will permanently delete ALL study centres, ALL students, ALL points, and ALL program reports/photos. Type 'WIPE' to confirm:";
+      actionType = 'centres_all';
+    }
+
+    const userInput = prompt(confirmMsg);
+    if (userInput !== 'WIPE') {
+      if (userInput !== null) {
+        alert("Incorrect confirmation keyword. Deletion cancelled.");
+      }
+      return;
+    }
+
+    try {
+      setImporting(true);
+      setImportMsg({ text: 'Wiping selected database records...', type: 'warning' });
+
+      if (actionType === 'students_all') {
+        const { error } = await supabase
+          .from('students')
+          .delete()
+          .filter('id', 'not.is', null);
+        if (error) throw error;
+        setImportMsg({ text: 'All student records and their points have been wiped successfully.', type: 'success' });
+      } else if (actionType === 'students_class') {
+        const { error } = await supabase
+          .from('students')
+          .delete()
+          .eq('class', targetClass);
+        if (error) throw error;
+        setImportMsg({ text: `Class ${targetClass} student records and their points have been wiped successfully.`, type: 'success' });
+      } else if (actionType === 'centres_all') {
+        const { error } = await supabase
+          .from('study_centres')
+          .delete()
+          .filter('id', 'not.is', null);
+        if (error) throw error;
+        setImportMsg({ text: 'All study centres and associated data (students, points, reports) have been wiped successfully.', type: 'success' });
+      }
+
+      // Refresh data stats
+      fetchStudyCentres();
+    } catch (err) {
+      setImportMsg({ text: 'Wipe operation failed: ' + err.message, type: 'error' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   // Excel Parser and Importer
   const handleExcelImport = (e) => {
     const file = e.target.files[0];
@@ -293,10 +390,21 @@ function AdminDashboard({ user, onLogout }) {
     for (const row of rows) {
       const regNum = row['Register Number']?.toString().trim();
       const name = row['Student Name']?.toString().trim();
-      const sClass = row['Class']?.toString().trim().toUpperCase(); // M1-M5
+      let sClass = row['Class']?.toString().trim().toUpperCase(); // M1-M5
       const scCode = row['Study Centre Code']?.toString().trim();
 
+      // If specific class filter is selected and class is missing in file, assign to it.
+      if (!sClass && importStudentClass !== 'ALL') {
+        sClass = importStudentClass;
+      }
+
       if (!regNum || !name || !sClass || !scCode) {
+        skippedCount++;
+        continue;
+      }
+
+      // Skip record if it doesn't match selected class override
+      if (importStudentClass !== 'ALL' && sClass !== importStudentClass) {
         skippedCount++;
         continue;
       }
@@ -775,67 +883,150 @@ function AdminDashboard({ user, onLogout }) {
         {/* TAB 1: UPLOAD EXCEL DATA */}
         {/* ==================================================== */}
         {activeTab === 'upload' && (
-          <div className="card animate-fade">
-            <h3 className="card-title">Bulk Excel Importer</h3>
-            <div className="card-desc">Populate study centres and student registers via Excel spreadsheets.</div>
-            
-            <div className="tab-filter-container" style={{ marginBottom: '20px' }}>
-              <button
-                className={`tab-filter-btn ${importType === 'centres' ? 'tab-filter-btn-active' : ''}`}
-                onClick={() => setImportType('centres')}
-              >
-                Import Study Centres
-              </button>
-              <button
-                className={`tab-filter-btn ${importType === 'students' ? 'tab-filter-btn-active' : ''}`}
-                onClick={() => setImportType('students')}
-              >
-                Import Student Register
-              </button>
-            </div>
-
-            {importMsg.text && (
-              <div className={`alert ${importMsg.type === 'success' ? 'alert-success' : 'alert-warning'} animate-fade`}>
-                <span className="alert-icon">{importMsg.type === 'success' ? '✓' : '⚠️'}</span>
-                <div>{importMsg.text}</div>
+          <>
+            <div className="card animate-fade">
+              <h3 className="card-title">Bulk Excel Importer</h3>
+              <div className="card-desc">Populate study centres and student registers via Excel spreadsheets.</div>
+              
+              <div className="tab-filter-container" style={{ marginBottom: '20px' }}>
+                <button
+                  className={`tab-filter-btn ${importType === 'centres' ? 'tab-filter-btn-active' : ''}`}
+                  onClick={() => setImportType('centres')}
+                >
+                  Import Study Centres
+                </button>
+                <button
+                  className={`tab-filter-btn ${importType === 'students' ? 'tab-filter-btn-active' : ''}`}
+                  onClick={() => setImportType('students')}
+                >
+                  Import Student Register
+                </button>
               </div>
-            )}
 
-            <div 
-              className="drop-zone"
-              onClick={() => !importing && document.getElementById('excel-file-input').click()}
-              style={{ padding: '50px 20px' }}
-            >
-              <span className="drop-zone-icon" style={{ fontSize: '48px' }}>📁</span>
-              <span className="drop-zone-text">
-                {importing ? 'Processing file records...' : `Tap to choose Excel sheet for ${importType === 'centres' ? 'Study Centres' : 'Students'}`}
-              </span>
-              <span className="drop-zone-subtext">Supports .xlsx, .xls, .csv templates</span>
-            </div>
-            
-            <input
-              type="file"
-              id="excel-file-input"
-              accept=".xlsx, .xls, .csv"
-              onChange={handleExcelImport}
-              style={{ display: 'none' }}
-              disabled={importing}
-            />
+              {/* Sample Templates Download Suite */}
+              <div style={{ margin: '0 0 20px 0', padding: '12px 16px', border: '1px solid var(--border)', borderRadius: '8px', backgroundColor: 'var(--bg-main)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: '700', color: 'var(--text-muted)' }}>📂 DOWNLOAD SAMPLE EXCEL TEMPLATES:</span>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button 
+                    className="btn btn-secondary animate-slide" 
+                    onClick={() => downloadSampleFile('centres')}
+                    style={{ padding: '8px 14px', fontSize: '11px', flex: 1, minWidth: '150px' }}
+                  >
+                    📥 Study Centres Template (.csv)
+                  </button>
+                  <button 
+                    className="btn btn-secondary animate-slide" 
+                    onClick={() => downloadSampleFile('students')}
+                    style={{ padding: '8px 14px', fontSize: '11px', flex: 1, minWidth: '150px' }}
+                  >
+                    📥 Students Template (.csv)
+                  </button>
+                </div>
+              </div>
 
-            {/* Template specs notes */}
-            <div style={{ marginTop: '24px', fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
-              <strong>Expected Header Formats:</strong>
-              {importType === 'centres' ? (
-                <ul>
-                  <li>Study Centre Code • Study Centre Name • Place • District • Username • Password</li>
-                </ul>
-              ) : (
-                <ul>
-                  <li>Register Number • Student Name • Class (M1, M2, M3, M4, M5) • Study Centre Code • Study Centre Name</li>
-                </ul>
+              {/* Target Class Selector for Students Upload */}
+              {importType === 'students' && (
+                <div style={{ marginBottom: '20px', padding: '12px 16px', border: '1px solid var(--border)', borderRadius: '8px', backgroundColor: 'var(--bg-main)' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', display: 'block', marginBottom: '6px', color: 'var(--text-main)' }}>
+                    🎯 Target Class Filter / Override:
+                  </label>
+                  <select 
+                    value={importStudentClass} 
+                    onChange={(e) => setImportStudentClass(e.target.value)}
+                    style={{ width: '100%', maxWidth: '350px', padding: '8px 12px', fontSize: '13px', borderRadius: '6px' }}
+                  >
+                    <option value="ALL">All Classes (Auto-detect class from file column)</option>
+                    <option value="M1">Class M1 Only (Filter rows or assign M1 if column missing)</option>
+                    <option value="M2">Class M2 Only (Filter rows or assign M2 if column missing)</option>
+                    <option value="M3">Class M3 Only (Filter rows or assign M3 if column missing)</option>
+                    <option value="M4">Class M4 Only (Filter rows or assign M4 if column missing)</option>
+                    <option value="M5">Class M5 Only (Filter rows or assign M5 if column missing)</option>
+                  </select>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    * Selecting a class (e.g., M1) allows you to upload an Excel file without a "Class" column, or filters a mixed file to import only M1.
+                  </div>
+                </div>
               )}
+
+              {importMsg.text && (
+                <div className={`alert ${importMsg.type === 'success' ? 'alert-success' : 'alert-warning'} animate-fade`}>
+                  <span className="alert-icon">{importMsg.type === 'success' ? '✓' : '⚠️'}</span>
+                  <div>{importMsg.text}</div>
+                </div>
+              )}
+
+              <div 
+                className="drop-zone"
+                onClick={() => !importing && document.getElementById('excel-file-input').click()}
+                style={{ padding: '45px 20px' }}
+              >
+                <span className="drop-zone-icon" style={{ fontSize: '44px' }}>📁</span>
+                <span className="drop-zone-text">
+                  {importing ? 'Processing file records...' : `Tap to choose Excel sheet for ${importType === 'centres' ? 'Study Centres' : `Students (${importStudentClass === 'ALL' ? 'All Classes' : `Class ${importStudentClass}`})`}`}
+                </span>
+                <span className="drop-zone-subtext">Supports .xlsx, .xls, .csv templates</span>
+              </div>
+              
+              <input
+                type="file"
+                id="excel-file-input"
+                accept=".xlsx, .xls, .csv"
+                onChange={handleExcelImport}
+                style={{ display: 'none' }}
+                disabled={importing}
+              />
+
+              {/* Template specs notes */}
+              <div style={{ marginTop: '20px', fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+                <strong>Expected Header Formats:</strong>
+                {importType === 'centres' ? (
+                  <ul>
+                    <li>Study Centre Code • Study Centre Name • Place • District • Username • Password</li>
+                  </ul>
+                ) : (
+                  <ul>
+                    <li>Register Number • Student Name • Class {importStudentClass === 'ALL' ? '(M1, M2, M3, M4, M5)' : `(Optional, defaulted to ${importStudentClass})`} • Study Centre Code • Study Centre Name</li>
+                  </ul>
+                )}
+              </div>
             </div>
-          </div>
+
+            {/* DANGER ZONE: DATA MANAGEMENT & WIPE */}
+            <div className="card animate-fade" style={{ borderLeft: '5px solid var(--accent-pink)', marginTop: '20px' }}>
+              <h3 className="card-title" style={{ color: 'var(--accent-pink)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>⚠️</span> Database Cleanup & Wipe Options
+              </h3>
+              <div className="card-desc">Permanently remove records to fix upload errors or prepare for fresh registrations. All deletions cascade-delete related points automatically.</div>
+              
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end', marginTop: '16px' }}>
+                <div style={{ flex: 1, minWidth: '220px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '700', display: 'block', marginBottom: '6px', color: 'var(--text-main)' }}>
+                    Choose Table Category to Wipe:
+                  </label>
+                  <select 
+                    id="delete-data-type"
+                    style={{ width: '100%', padding: '10px', borderRadius: '6px', fontSize: '13px' }}
+                  >
+                    <option value="students_all">Wipe ALL Student Roster (Clear Students & Points)</option>
+                    <option value="students_m1">Wipe Class M1 Students Only</option>
+                    <option value="students_m2">Wipe Class M2 Students Only</option>
+                    <option value="students_m3">Wipe Class M3 Students Only</option>
+                    <option value="students_m4">Wipe Class M4 Students Only</option>
+                    <option value="students_m5">Wipe Class M5 Students Only</option>
+                    <option value="centres_all">Wipe ALL Study Centres (WARNING: Wipes centres, coordinators, students, points, reports & photos!)</option>
+                  </select>
+                </div>
+                
+                <button 
+                  className="btn btn-pink animate-slide"
+                  onClick={handleDeleteData}
+                  style={{ padding: '10px 20px', fontSize: '13px', fontWeight: '700', height: '42px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                  Wipe Selected Records
+                </button>
+              </div>
+            </div>
+          </>
         )}
 
         {/* ==================================================== */}
