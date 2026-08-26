@@ -153,11 +153,11 @@ alter table program_reports enable row level security;
 alter table program_photos enable row level security;
 
 -- Create role classification helper function
--- Admins will log in as a specific auth user (e.g., email = admin@yob.portal)
+-- Admins will log in as a specific auth user (e.g., email = mahdiyya@dhiu.in)
 create or replace function is_admin()
 returns boolean as $$
 begin
-  return (auth.jwt() ->> 'email') = 'admin@yob.portal';
+  return (auth.jwt() ->> 'email') = 'mahdiyya@dhiu.in';
 end;
 $$ language plpgsql security definer;
 

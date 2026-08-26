@@ -48,7 +48,7 @@ export async function getUserRole(user) {
   if (!user) return null;
   
   // Admin detection
-  if (user.email === 'admin@yob.portal') {
+  if (user.email === 'mahdiyya@dhiu.in') {
     return { role: 'admin', data: { name: 'Portal Administrator' } };
   }
 
