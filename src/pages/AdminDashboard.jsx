@@ -363,22 +363,20 @@ function AdminDashboard({ user, onLogout }) {
       const email = `${username.toLowerCase()}@yob.portal`;
 
       try {
-        // If user doesn't exist, create login account using the Postgres function
-        if (!existing) {
-          const { error: rpcErr } = await supabase.rpc('create_auth_user', {
-            p_id: userUuid,
-            p_email: email,
-            p_password: password,
-            p_username: username
-          });
-          if (rpcErr) throw rpcErr;
-        }
+        // Create or synchronize the login auth account and get the correct UUID
+        const { data: finalUuid, error: rpcErr } = await supabase.rpc('create_auth_user', {
+          p_id: userUuid,
+          p_email: email,
+          p_password: password,
+          p_username: username
+        });
+        if (rpcErr) throw rpcErr;
 
-        // Insert / Update the public profile record
+        // Insert / Update the public profile record using the correct UUID returned by the function
         const { error: upsertErr } = await supabase
           .from('study_centres')
           .upsert({
-            id: userUuid,
+            id: finalUuid,
             code,
             name,
             place,

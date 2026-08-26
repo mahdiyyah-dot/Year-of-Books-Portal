@@ -330,61 +330,99 @@ create or replace function create_auth_user(
   p_email text,
   p_password text,
   p_username text
-) returns void as $$
+) returns uuid as $$
+declare
+  v_id uuid;
 begin
-  -- Insert into auth.users
-  insert into auth.users (
-    id,
-    instance_id,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    created_at,
-    updated_at,
-    role,
-    confirmation_token,
-    email_change,
-    email_change_token_new,
-    recovery_token
-  ) values (
-    p_id,
-    '00000000-0000-0000-0000-000000000000',
-    p_email,
-    crypt(p_password, gen_salt('bf')),
-    now(),
-    '{"provider":"email","providers":["email"]}',
-    jsonb_build_object('username', p_username),
-    now(),
-    now(),
-    'authenticated',
-    '',
-    '',
-    '',
-    ''
-  );
+  -- Check if user with this email already exists
+  select id into v_id from auth.users where email = p_email;
 
-  -- Link into auth.identities to make it fully authenticatable in Supabase
-  insert into auth.identities (
-    id,
-    user_id,
-    identity_data,
-    provider,
-    provider_id,
-    last_sign_in_at,
-    created_at,
-    updated_at
-  ) values (
-    p_id,
-    p_id,
-    jsonb_build_object('sub', p_id, 'email', p_email),
-    'email',
-    p_id::text,
-    now(),
-    now(),
-    now()
-  );
+  if v_id is not null then
+    -- User already exists! We can update their password and username metadata
+    update auth.users 
+    set encrypted_password = crypt(p_password, gen_salt('bf')),
+        raw_user_meta_data = jsonb_build_object('username', p_username),
+        updated_at = now()
+    where id = v_id;
+    
+    -- Ensure identities record exists (safely upsert)
+    insert into auth.identities (
+      id,
+      user_id,
+      identity_data,
+      provider,
+      provider_id,
+      last_sign_in_at,
+      created_at,
+      updated_at
+    ) values (
+      v_id,
+      v_id,
+      jsonb_build_object('sub', v_id, 'email', p_email),
+      'email',
+      v_id::text,
+      now(),
+      now(),
+      now()
+    ) on conflict (provider, provider_id) do nothing;
+    
+    return v_id;
+  else
+    -- User does not exist, insert new record
+    insert into auth.users (
+      id,
+      instance_id,
+      email,
+      encrypted_password,
+      email_confirmed_at,
+      raw_app_meta_data,
+      raw_user_meta_data,
+      created_at,
+      updated_at,
+      role,
+      confirmation_token,
+      email_change,
+      email_change_token_new,
+      recovery_token
+    ) values (
+      p_id,
+      '00000000-0000-0000-0000-000000000000',
+      p_email,
+      crypt(p_password, gen_salt('bf')),
+      now(),
+      '{"provider":"email","providers":["email"]}',
+      jsonb_build_object('username', p_username),
+      now(),
+      now(),
+      'authenticated',
+      '',
+      '',
+      '',
+      ''
+    );
+
+    insert into auth.identities (
+      id,
+      user_id,
+      identity_data,
+      provider,
+      provider_id,
+      last_sign_in_at,
+      created_at,
+      updated_at
+    ) values (
+      p_id,
+      p_id,
+      jsonb_build_object('sub', p_id, 'email', p_email),
+      'email',
+      p_id::text,
+      now(),
+      now(),
+      now()
+    );
+
+    return p_id;
+  end if;
 end;
 $$ language plpgsql security definer;
 
