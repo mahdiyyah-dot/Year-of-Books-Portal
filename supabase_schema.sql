@@ -371,6 +371,7 @@ begin
     user_id,
     identity_data,
     provider,
+    provider_id,
     last_sign_in_at,
     created_at,
     updated_at
@@ -379,6 +380,7 @@ begin
     p_id,
     jsonb_build_object('sub', p_id, 'email', p_email),
     'email',
+    p_id::text,
     now(),
     now(),
     now()
