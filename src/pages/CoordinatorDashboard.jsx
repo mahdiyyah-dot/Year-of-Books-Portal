@@ -44,6 +44,13 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   const [windowOpen, setWindowOpen] = useState(true);
   const [activeClass, setActiveClass] = useState('M1');
 
+  // Manual Add Student States
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
+  const [newStudentReg, setNewStudentReg] = useState('');
+  const [newStudentClass, setNewStudentClass] = useState('M1');
+  const [addingStudent, setAddingStudent] = useState(false);
+
   // Points State
   const [students, setStudents] = useState([]);
   const [pointsData, setPointsData] = useState({}); // studentId -> point string value
@@ -220,6 +227,45 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       ...prev,
       [studentId]: newVal.toString()
     }));
+  };
+
+  // Add manual student entry
+  const handleAddStudent = async (e) => {
+    e.preventDefault();
+    if (!newStudentName.trim() || !newStudentReg.trim()) {
+      alert('Please fill in all fields.');
+      return;
+    }
+
+    try {
+      setAddingStudent(true);
+      const { error } = await supabase
+        .from('students')
+        .insert({
+          register_number: newStudentReg.trim(),
+          name: newStudentName.trim(),
+          class: newStudentClass,
+          study_centre_code: profile.code
+        });
+
+      if (error) throw error;
+
+      // Reset fields and close modal
+      setNewStudentName('');
+      setNewStudentReg('');
+      setShowAddStudentModal(false);
+
+      alert(`Student "${newStudentName.trim()}" added successfully to Class ${newStudentClass}!`);
+      
+      // If the added student's class matches current class view, refresh roster
+      if (newStudentClass === activeClass) {
+        fetchStudentsAndPoints();
+      }
+    } catch (err) {
+      alert('Error registering student: ' + err.message);
+    } finally {
+      setAddingStudent(false);
+    }
   };
 
   // Helper for direct input modification
@@ -658,8 +704,11 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
               <h3 className="card-title">Log Reading Points</h3>
               <div className="card-desc">Enter the decimal points assigned to each student. Save when complete.</div>
               
-              <div className="selector-row">
-                <select value={activeClass} onChange={(e) => setActiveClass(e.target.value)} disabled={savingPoints}>
+              <div className="selector-row" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <select value={activeClass} onChange={(e) => {
+                  setActiveClass(e.target.value);
+                  setNewStudentClass(e.target.value); // Sync default modal selection
+                }} disabled={savingPoints}>
                   <option value="M1">Class M1</option>
                   <option value="M2">Class M2</option>
                   <option value="M3">Class M3</option>
@@ -672,6 +721,18 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   <option value="2026-09">September 2026</option>
                   <option value="2026-10">October 2026</option>
                 </select>
+
+                <button 
+                  className="btn btn-secondary animate-slide" 
+                  onClick={() => {
+                    setNewStudentClass(activeClass);
+                    setShowAddStudentModal(true);
+                  }}
+                  disabled={!windowOpen || savingPoints}
+                  style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', width: 'auto', marginLeft: 'auto' }}
+                >
+                  ➕ Add Student
+                </button>
               </div>
 
               {pointsSuccessMsg && (
@@ -1119,6 +1180,78 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
           <span>Leaderboard</span>
         </button>
       </nav>
+
+      {/* Modal Overlay for Adding New Student */}
+      {showAddStudentModal && (
+        <div className="modal-backdrop animate-fade" onClick={() => setShowAddStudentModal(false)}>
+          <div className="modal-card animate-slide" onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '800', color: 'var(--primary)' }}>
+              🎓 Add New Student
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+              Manually register a new admission student to your study centre.
+            </p>
+            
+            <form onSubmit={handleAddStudent}>
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Register Number</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. 2024-YOB-101" 
+                  value={newStudentReg}
+                  onChange={(e) => setNewStudentReg(e.target.value)}
+                  required 
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Student Name</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Amina Fathima" 
+                  value={newStudentName}
+                  onChange={(e) => setNewStudentName(e.target.value)}
+                  required 
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Assigned Class</label>
+                <select 
+                  value={newStudentClass} 
+                  onChange={(e) => setNewStudentClass(e.target.value)}
+                  required
+                >
+                  <option value="M1">Class M1</option>
+                  <option value="M2">Class M2</option>
+                  <option value="M3">Class M3</option>
+                  <option value="M4">Class M4</option>
+                  <option value="M5">Class M5</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowAddStudentModal(false)}
+                  style={{ padding: '10px 16px', fontSize: '13px' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary"
+                  style={{ padding: '10px 20px', fontSize: '13px' }}
+                  disabled={addingStudent}
+                >
+                  {addingStudent ? 'Registering...' : 'Register Student'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
