@@ -61,6 +61,7 @@ function AdminDashboard({ user, onLogout }) {
   // State Level Leaderboards states
   const [leaderboardTab, setLeaderboardTab] = useState('centres'); // 'centres', 'students', 'classes'
   const [leaderboardPeriod, setLeaderboardPeriod] = useState('monthly'); // 'monthly', 'cumulative'
+  const [leaderboardClass, setLeaderboardClass] = useState('M1'); // 'M1', 'M2', 'M3', 'M4', 'M5'
   const [stateRankings, setStateRankings] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
@@ -88,7 +89,7 @@ function AdminDashboard({ user, onLogout }) {
     if (activeTab === 'leaderboard') {
       fetchStateLeaderboards();
     }
-  }, [activeTab, leaderboardTab, leaderboardPeriod, activeMonth]);
+  }, [activeTab, leaderboardTab, leaderboardPeriod, activeMonth, leaderboardClass]);
 
   // Fetch global config settings
   const fetchGlobalConfig = async () => {
@@ -844,37 +845,21 @@ function AdminDashboard({ user, onLogout }) {
         setStateRankings(schoolRankings);
       } else if (leaderboardTab === 'classes') {
         // -------------------------
-        // CLASS LEADERBOARD (Compares M1-M5 averages globally)
+        // STATE LEVEL STUDENTS RANKING FILTERED BY CLASS
         // -------------------------
-        const classIds = { M1: [], M2: [], M3: [], M4: [], M5: [] };
-        roster.forEach(st => {
-          if (classIds[st.class]) {
-            classIds[st.class].push(st.id);
-          }
-        });
-
-        const classRankings = ['M1', 'M2', 'M3', 'M4', 'M5'].map(cls => {
-          const sIds = classIds[cls] || [];
-          const studentCount = sIds.length;
-
-          let sumScores = 0;
-          sIds.forEach(id => {
-            sumScores += scoreTotals[id] || 0;
-          });
-
-          const average = studentCount === 0 ? 0 : parseFloat((sumScores / studentCount).toFixed(2));
-
-          return {
-            id: cls,
-            name: `Class ${cls}`,
-            place: 'State Level Category',
-            studentCount,
-            score: average
-          };
-        })
+        const classRoster = roster.filter(st => st.class === leaderboardClass);
+        
+        const ranked = classRoster.map(st => ({
+          id: st.id,
+          name: st.name,
+          class: st.class,
+          reg: st.register_number,
+          centreName: st.study_centres?.name || st.study_centre_code,
+          score: scoreTotals[st.id] ? parseFloat(scoreTotals[st.id].toFixed(1)) : 0
+        }))
         .sort((a, b) => b.score - a.score);
 
-        setStateRankings(classRankings);
+        setStateRankings(ranked);
       }
     } catch (err) {
       console.error('Error generating state rankings:', err);
@@ -1499,7 +1484,7 @@ function AdminDashboard({ user, onLogout }) {
                 className={`tab-filter-btn ${leaderboardTab === 'classes' ? 'tab-filter-btn-active' : ''}`}
                 onClick={() => setLeaderboardTab('classes')}
               >
-                Classes Comparison
+                Class Ranks (State)
               </button>
             </div>
 
@@ -1514,15 +1499,29 @@ function AdminDashboard({ user, onLogout }) {
                 <option value="cumulative">Cumulative Rankings</option>
               </select>
 
+              {leaderboardTab === 'classes' && (
+                <select 
+                  value={leaderboardClass} 
+                  onChange={(e) => setLeaderboardClass(e.target.value)}
+                  style={{ flex: 1 }}
+                >
+                  <option value="M1">Class M1 State Ranks</option>
+                  <option value="M2">Class M2 State Ranks</option>
+                  <option value="M3">Class M3 State Ranks</option>
+                  <option value="M4">Class M4 State Ranks</option>
+                  <option value="M5">Class M5 State Ranks</option>
+                </select>
+              )}
+
               {leaderboardPeriod === 'monthly' && (
                 <select 
                   value={activeMonth} 
                   onChange={(e) => setActiveMonth(e.target.value)}
                   style={{ flex: 1 }}
                 >
-                  <option value="2026-08">August 2026</option>
-                  <option value="2026-09">September 2026</option>
-                  <option value="2026-10">October 2026</option>
+                  {availableMonths.map(m => (
+                    <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                  ))}
                 </select>
               )}
             </div>
@@ -1597,18 +1596,16 @@ function AdminDashboard({ user, onLogout }) {
                         <div className="leaderboard-details">
                           <span className="leaderboard-name">{item.name}</span>
                           <span className="leaderboard-sub">
-                            {leaderboardTab === 'students' 
+                            {leaderboardTab === 'students' || leaderboardTab === 'classes'
                               ? `Class ${item.class} • ${item.centreName} • Reg: ${item.reg}`
-                              : leaderboardTab === 'centres'
-                                ? `District: ${item.place} • Students: ${item.studentCount}`
-                                : `State Category • Groups Count: ${item.studentCount}`
+                              : `District: ${item.place} • Students: ${item.studentCount}`
                             }
                           </span>
                         </div>
                       </div>
                       <div className="leaderboard-right">
                         <span className="leaderboard-score-pill">
-                          {item.score} {leaderboardTab === 'students' ? 'pts' : 'avg pts'}
+                          {item.score} {(leaderboardTab === 'students' || leaderboardTab === 'classes') ? 'pts' : 'avg pts'}
                         </span>
                       </div>
                     </div>
