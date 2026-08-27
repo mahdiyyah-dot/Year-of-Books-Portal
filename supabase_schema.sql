@@ -91,14 +91,33 @@ create table if not exists program_photos (
 -- DEADLINE CONTROL LOGIC (PL/pgSQL Functions)
 -- ==========================================
 
-create or replace function check_submission_allowed(sc_code text)
+create or replace function check_submission_allowed_for_month(sc_code text, target_month text)
 returns boolean as $$
 declare
   v_mode text;
   v_override boolean;
   v_day integer;
+  v_months jsonb;
+  v_month_locked boolean;
 begin
-  -- 1. Check if there is a specific manual override for this study centre
+  -- 1. Check if the specific month is locked in available_months system settings
+  select value::jsonb into v_months
+  from system_settings
+  where key = 'available_months';
+
+  if v_months is not null then
+    select exists (
+      select 1
+      from jsonb_array_elements(v_months) elem
+      where elem->>'month' = target_month and (elem->>'is_locked')::boolean = true
+    ) into v_month_locked;
+    
+    if v_month_locked then
+      return false; -- Block points uploads if month is locked!
+    end if;
+  end if;
+
+  -- 2. Check if there is a specific manual override for this study centre
   select is_active_override into v_override
   from study_centres
   where code = sc_code;
@@ -107,7 +126,7 @@ begin
     return v_override;
   end if;
 
-  -- 2. Check global setting mode
+  -- 3. Check global setting mode
   select (value->>'mode') into v_mode
   from system_settings
   where key = 'upload_window';
@@ -125,8 +144,23 @@ end;
 $$ language plpgsql security definer;
 
 
+create or replace function check_submission_allowed(sc_code text)
+returns boolean as $$
+declare
+  v_active_month text;
+begin
+  -- Backward-compatibility fallback: checks system active month
+  select value->>'month' into v_active_month
+  from system_settings
+  where key = 'active_month';
+
+  return check_submission_allowed_for_month(sc_code, v_active_month);
+end;
+$$ language plpgsql security definer;
+
+
 -- Helper function for RLS checking on point updates
-create or replace function is_study_centre_submission_allowed_for_student(student_id uuid)
+create or replace function is_study_centre_submission_allowed_for_student_month(student_id uuid, target_month text)
 returns boolean as $$
 declare
   v_sc_code text;
@@ -135,7 +169,22 @@ begin
   from students
   where id = student_id;
   
-  return check_submission_allowed(v_sc_code);
+  return check_submission_allowed_for_month(v_sc_code, target_month);
+end;
+$$ language plpgsql security definer;
+
+
+-- Deprecated helper fallback
+create or replace function is_study_centre_submission_allowed_for_student(student_id uuid)
+returns boolean as $$
+declare
+  v_active_month text;
+begin
+  select value->>'month' into v_active_month
+  from system_settings
+  where key = 'active_month';
+
+  return is_study_centre_submission_allowed_for_student_month(student_id, v_active_month);
 end;
 $$ language plpgsql security definer;
 
@@ -216,8 +265,8 @@ create policy "Study centres can insert points for their own students"
       join study_centres sc on s.study_centre_code = sc.code
       where s.id = student_id and sc.id = auth.uid()
     )
-    -- Submission window must be open
-    and is_study_centre_submission_allowed_for_student(student_id)
+    -- Submission window must be open for this specific month
+    and is_study_centre_submission_allowed_for_student_month(student_id, month)
   );
 
 create policy "Study centres can update points for their own students"
@@ -228,8 +277,8 @@ create policy "Study centres can update points for their own students"
       where s.id = student_id and sc.id = auth.uid()
     )
   ) with check (
-    -- Submission window must be open
-    is_study_centre_submission_allowed_for_student(student_id)
+    -- Submission window must be open for this specific month
+    is_study_centre_submission_allowed_for_student_month(student_id, month)
   );
 
 create policy "Study centres can delete points for their own students"
@@ -239,7 +288,7 @@ create policy "Study centres can delete points for their own students"
       join study_centres sc on s.study_centre_code = sc.code
       where s.id = student_id and sc.id = auth.uid()
     )
-    and is_study_centre_submission_allowed_for_student(student_id)
+    and is_study_centre_submission_allowed_for_student_month(student_id, month)
   );
 
 
@@ -261,7 +310,7 @@ create policy "Study centres can insert their own program_reports"
       select 1 from study_centres 
       where id = auth.uid() and code = study_centre_code
     )
-    and check_submission_allowed(study_centre_code)
+    and check_submission_allowed_for_month(study_centre_code, month)
   );
 
 create policy "Study centres can update their own program_reports"
@@ -271,7 +320,7 @@ create policy "Study centres can update their own program_reports"
       where id = auth.uid() and code = study_centre_code
     )
   ) with check (
-    check_submission_allowed(study_centre_code)
+    check_submission_allowed_for_month(study_centre_code, month)
   );
 
 create policy "Study centres can delete their own program_reports"
@@ -280,7 +329,7 @@ create policy "Study centres can delete their own program_reports"
       select 1 from study_centres 
       where id = auth.uid() and code = study_centre_code
     )
-    and check_submission_allowed(study_centre_code)
+    and check_submission_allowed_for_month(study_centre_code, month)
   );
 
 

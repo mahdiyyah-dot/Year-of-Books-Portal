@@ -50,7 +50,11 @@ function AdminDashboard({ user, onLogout }) {
   // Status Matrix states
   const [matrixData, setMatrixData] = useState([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
-  const [availableMonths, setAvailableMonths] = useState(['2026-08', '2026-09', '2026-10']);
+  const [availableMonths, setAvailableMonths] = useState([
+    { month: '2026-08', is_locked: false },
+    { month: '2026-09', is_locked: false },
+    { month: '2026-10', is_locked: false }
+  ]);
   const [matrixMonth, setMatrixMonth] = useState('2026-08');
   // Filters for Status Matrix
   const [filterSearch, setFilterSearch] = useState('');
@@ -123,10 +127,20 @@ function AdminDashboard({ user, onLogout }) {
         .maybeSingle();
 
       if (monthsData && Array.isArray(monthsData.value)) {
-        setAvailableMonths(monthsData.value);
+        const parsed = monthsData.value.map(item => {
+          if (typeof item === 'string') {
+            return { month: item, is_locked: false };
+          }
+          return item;
+        });
+        setAvailableMonths(parsed);
       } else {
         // Self-healing database seed if missing
-        const defaultMonths = ['2026-08', '2026-09', '2026-10'];
+        const defaultMonths = [
+          { month: '2026-08', is_locked: false },
+          { month: '2026-09', is_locked: false },
+          { month: '2026-10', is_locked: false }
+        ];
         await supabase
           .from('system_settings')
           .upsert({ key: 'available_months', value: defaultMonths });
@@ -197,13 +211,18 @@ function AdminDashboard({ user, onLogout }) {
     const year = document.getElementById('new-year-select')?.value;
     if (!month || !year) return;
 
-    const newMonthStr = `${year}-${month}`;
-    if (availableMonths.includes(newMonthStr)) {
+    const mVals = availableMonths.map(m => typeof m === 'string' ? m : m.month);
+    if (mVals.includes(newMonthStr)) {
       alert('This month is already registered.');
       return;
     }
 
-    const updated = [...availableMonths, newMonthStr].sort();
+    const updated = [...availableMonths, { month: newMonthStr, is_locked: false }].sort((a, b) => {
+      const aVal = typeof a === 'string' ? a : a.month;
+      const bVal = typeof b === 'string' ? b : b.month;
+      return aVal.localeCompare(bVal);
+    });
+    
     try {
       const { error } = await supabase
         .from('system_settings')
@@ -217,6 +236,28 @@ function AdminDashboard({ user, onLogout }) {
     }
   };
 
+  const handleToggleMonthLock = async (monthStr) => {
+    const updated = availableMonths.map(m => {
+      const mVal = typeof m === 'string' ? m : m.month;
+      const mLocked = typeof m === 'string' ? false : m.is_locked;
+      if (mVal === monthStr) {
+        return { month: mVal, is_locked: !mLocked };
+      }
+      return { month: mVal, is_locked: mLocked };
+    });
+
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({ key: 'available_months', value: updated });
+
+      if (error) throw error;
+      setAvailableMonths(updated);
+    } catch (err) {
+      alert('Failed to update month lock status: ' + err.message);
+    }
+  };
+
   const handleRemoveMonth = async (monthStr) => {
     if (availableMonths.length <= 1) {
       alert('You must keep at least one active month.');
@@ -226,7 +267,7 @@ function AdminDashboard({ user, onLogout }) {
     const confirmDel = window.confirm(`Are you sure you want to delete month "${formatMonthLabel(monthStr)}"? This will not delete points records, but will remove it from all dropdowns.`);
     if (!confirmDel) return;
 
-    const updated = availableMonths.filter(m => m !== monthStr);
+    const updated = availableMonths.filter(m => (typeof m === 'string' ? m : m.month) !== monthStr);
     try {
       const { error } = await supabase
         .from('system_settings')
@@ -237,12 +278,14 @@ function AdminDashboard({ user, onLogout }) {
       
       // If deleted month was the active month, set active month to the first available month
       if (activeMonth === monthStr) {
-        handleUpdateMonth(updated[0]);
+        const firstMonth = typeof updated[0] === 'string' ? updated[0] : updated[0].month;
+        handleUpdateMonth(firstMonth);
       }
       
       // If deleted month was the matrix month, reset it
       if (matrixMonth === monthStr) {
-        setMatrixMonth(updated[0]);
+        const firstMonth = typeof updated[0] === 'string' ? updated[0] : updated[0].month;
+        setMatrixMonth(firstMonth);
       }
     } catch (err) {
       alert('Failed to remove month: ' + err.message);
@@ -1265,9 +1308,10 @@ function AdminDashboard({ user, onLogout }) {
                 <div>
                   <label>System Active Month</label>
                   <select value={activeMonth} onChange={(e) => handleUpdateMonth(e.target.value)}>
-                    {availableMonths.map(m => (
-                      <option key={m} value={m}>{formatMonthLabel(m)}</option>
-                    ))}
+                    {availableMonths.map(m => {
+                      const monthVal = typeof m === 'string' ? m : m.month;
+                      return <option key={monthVal} value={monthVal}>{formatMonthLabel(monthVal)}</option>;
+                    })}
                   </select>
                 </div>
 
@@ -1330,19 +1374,34 @@ function AdminDashboard({ user, onLogout }) {
               <div className="card-desc">Add new academic months or delete unused months. All dropdown selectors sync automatically.</div>
               
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                {availableMonths.map(m => (
-                  <div key={m} style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', fontSize: '13px' }}>
-                    <strong>{formatMonthLabel(m)}</strong> ({m})
-                    <button 
-                      type="button" 
-                      onClick={() => handleRemoveMonth(m)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-pink)', padding: '2px', fontWeight: 'bold' }}
-                      title="Delete Month"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
+                {availableMonths.map(m => {
+                  const monthVal = typeof m === 'string' ? m : m.month;
+                  const isLocked = typeof m === 'string' ? false : m.is_locked;
+                  return (
+                    <div key={monthVal} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', fontSize: '13px' }}>
+                      <strong>{formatMonthLabel(monthVal)}</strong> ({monthVal})
+                      
+                      <button
+                        type="button"
+                        onClick={() => handleToggleMonthLock(monthVal)}
+                        className={`badge ${isLocked ? 'badge-pink' : 'badge-green'}`}
+                        style={{ padding: '2px 8px', fontSize: '11px', cursor: 'pointer', border: 'none', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                        title={isLocked ? 'Click to Unlock point entries' : 'Click to Lock point entries'}
+                      >
+                        {isLocked ? '🔒 Locked' : '🔓 Open'}
+                      </button>
+
+                      <button 
+                        type="button" 
+                        onClick={() => handleRemoveMonth(monthVal)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-pink)', padding: '2px', fontWeight: 'bold', marginLeft: '4px' }}
+                        title="Delete Month"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
@@ -1400,9 +1459,10 @@ function AdminDashboard({ user, onLogout }) {
                 onChange={(e) => setMatrixMonth(e.target.value)}
                 style={{ flex: 1, minWidth: '150px', padding: '10px 14px' }}
               >
-                {availableMonths.map(m => (
-                  <option key={m} value={m}>{formatMonthLabel(m)}</option>
-                ))}
+                {availableMonths.map(m => {
+                  const monthVal = typeof m === 'string' ? m : m.month;
+                  return <option key={monthVal} value={monthVal}>{formatMonthLabel(monthVal)}</option>;
+                })}
               </select>
 
               <input
@@ -1561,9 +1621,10 @@ function AdminDashboard({ user, onLogout }) {
                   onChange={(e) => setActiveMonth(e.target.value)}
                   style={{ flex: 1 }}
                 >
-                  {availableMonths.map(m => (
-                    <option key={m} value={m}>{formatMonthLabel(m)}</option>
-                  ))}
+                  {availableMonths.map(m => {
+                    const monthVal = typeof m === 'string' ? m : m.month;
+                    return <option key={monthVal} value={monthVal}>{formatMonthLabel(monthVal)}</option>;
+                  })}
                 </select>
               )}
             </div>

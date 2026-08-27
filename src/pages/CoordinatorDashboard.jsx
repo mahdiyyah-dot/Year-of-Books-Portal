@@ -120,7 +120,13 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
           .maybeSingle();
 
         if (monthsData && Array.isArray(monthsData.value)) {
-          setAvailableMonths(monthsData.value);
+          const parsed = monthsData.value.map(item => {
+            if (typeof item === 'string') {
+              return { month: item, is_locked: false };
+            }
+            return item;
+          });
+          setAvailableMonths(parsed);
         }
       } catch (err) {
         console.error('Error fetching window config:', err);
@@ -248,7 +254,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
   // Helper for Stepper Controls
   const handleStep = (studentId, amount) => {
-    if (!windowOpen) return;
+    if (!isSubmissionAllowed) return;
     const currentVal = parseFloat(pointsData[studentId]) || 0;
     // Calculate new point value ensuring it has only 1 decimal place and is non-negative
     const newVal = Math.max(0, parseFloat((currentVal + amount).toFixed(1)));
@@ -369,7 +375,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
   // Helper for direct input modification
   const handleInputChange = (studentId, value) => {
-    if (!windowOpen) return;
+    if (!isSubmissionAllowed) return;
     // Allow digits and decimals only
     if (value === '' || /^[0-9]*\.?[0-9]?$/.test(value)) {
       setPointsData(prev => ({
@@ -381,7 +387,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
   // Floating save action
   const handleSavePoints = async () => {
-    if (!windowOpen) return;
+    if (!isSubmissionAllowed) return;
     
     // Find modified values compared to original
     const modifiedRecords = [];
@@ -553,7 +559,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   // Submit report + upload images
   const handleReportSubmit = async (e) => {
     e.preventDefault();
-    if (!windowOpen) {
+    if (!isSubmissionAllowed) {
       alert('Submissions are locked for this month.');
       return;
     }
@@ -756,6 +762,11 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   // Detect modified scores state to show floating save button
   const hasModifiedScores = students.some(s => pointsData[s.id] !== originalPoints[s.id]);
 
+  // Month specific lock verification in component scope
+  const selectedMonthObj = availableMonths.find(m => (typeof m === 'string' ? m : m.month) === activeMonth);
+  const isSelectedMonthLocked = selectedMonthObj && typeof selectedMonthObj === 'object' && selectedMonthObj.is_locked;
+  const isSubmissionAllowed = windowOpen && !isSelectedMonthLocked;
+
   return (
     <div className="dashboard-root animate-fade">
       {/* Dashboard Top Header Bar */}
@@ -784,12 +795,13 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
       {/* Main Content Area */}
       <main className="container">
+
         {/* active window alert */}
-        {!windowOpen && activeTab !== 'leaderboard' && (
+        {!isSubmissionAllowed && activeTab !== 'leaderboard' && (
           <div className="alert alert-warning animate-fade">
             <span className="alert-icon">🔒</span>
             <div>
-              <strong>Submissions Closed!</strong> Point logging and report uploads are locked for {activeMonth}. Contact the Admin to request access.
+              <strong>Submissions Closed!</strong> Point logging and report uploads are locked for {formatMonthLabel(activeMonth)}. Contact the Admin to request access.
             </div>
           </div>
         )}
@@ -898,7 +910,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                           }
                         }}
                         placeholder="0.0"
-                        disabled={!windowOpen || savingPoints}
+                        disabled={!isSubmissionAllowed || savingPoints}
                       />
                     </div>
                   ))}
@@ -907,7 +919,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
             </div>
 
             {/* Sticky Floating Save points button for mobile ease */}
-            {hasModifiedScores && windowOpen && (
+            {hasModifiedScores && isSubmissionAllowed && (
               <div className="floating-action-container">
                 <button 
                   className="btn btn-primary floating-btn" 
@@ -995,9 +1007,10 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
               <form onSubmit={handleReportSubmit}>
                 <div className="selector-row">
                   <select value={activeMonth} onChange={(e) => setActiveMonth(e.target.value)} disabled={submittingReport}>
-                    <option value="2026-08">August 2026</option>
-                    <option value="2026-09">September 2026</option>
-                    <option value="2026-10">October 2026</option>
+                    {availableMonths.map(m => {
+                      const monthVal = typeof m === 'string' ? m : m.month;
+                      return <option key={monthVal} value={monthVal}>{formatMonthLabel(monthVal)}</option>;
+                    })}
                   </select>
                 </div>
 
@@ -1010,7 +1023,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                     onChange={(e) => setProgramName(e.target.value)}
                     placeholder="e.g. Inauguration of Book Club"
                     required
-                    disabled={!windowOpen || submittingReport}
+                    disabled={!isSubmissionAllowed || submittingReport}
                   />
                 </div>
 
@@ -1022,7 +1035,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                     value={programDate}
                     onChange={(e) => setProgramDate(e.target.value)}
                     required
-                    disabled={!windowOpen || submittingReport}
+                    disabled={!isSubmissionAllowed || submittingReport}
                   />
                 </div>
 
@@ -1035,7 +1048,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                     onChange={(e) => setProgramDesc(e.target.value)}
                     placeholder="Tell us about the attendees, activities, and response..."
                     required
-                    disabled={!windowOpen || submittingReport}
+                    disabled={!isSubmissionAllowed || submittingReport}
                     style={{ resize: 'vertical' }}
                   />
                 </div>
@@ -1045,7 +1058,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   <label>Upload Program Photos</label>
                   <div 
                     className="drop-zone"
-                    onClick={() => windowOpen && document.getElementById('photo-file-input').click()}
+                    onClick={() => isSubmissionAllowed && document.getElementById('photo-file-input').click()}
                   >
                     <span className="drop-zone-icon">📷</span>
                     <span className="drop-zone-text">Tap to capture or upload photos</span>
@@ -1058,7 +1071,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                     accept="image/*"
                     onChange={handlePhotoSelect}
                     style={{ display: 'none' }}
-                    disabled={!windowOpen || submittingReport}
+                    disabled={!isSubmissionAllowed || submittingReport}
                   />
 
                   {/* Previews panel */}
@@ -1085,7 +1098,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   type="submit"
                   className="btn btn-primary"
                   style={{ width: '100%', marginTop: '24px', height: '46px' }}
-                  disabled={!windowOpen || submittingReport}
+                  disabled={!isSubmissionAllowed || submittingReport}
                 >
                   {submittingReport ? 'Uploading Report...' : '📤 Submit Program'}
                 </button>
