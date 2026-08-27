@@ -140,35 +140,43 @@ function Login() {
         }
 
         .login-logo-section {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
           text-align: center;
-          margin-bottom: 28px;
+          margin-bottom: 24px;
         }
 
         .login-brand-img {
           width: 140px;
+          max-width: 100%;
           height: auto;
           border-radius: 12px;
-          margin-bottom: 12px;
+          margin: 0 auto 12px auto;
           box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
           object-fit: contain;
+          display: block;
         }
 
         .login-tracker-badge {
           display: inline-block;
-          font-size: 14px;
+          font-size: 13px;
           font-weight: 800;
           letter-spacing: 1.5px;
           color: var(--primary);
           background: rgba(113, 63, 152, 0.08);
-          padding: 4px 14px;
+          padding: 5px 16px;
           border-radius: 20px;
-          margin-bottom: 6px;
+          margin: 0 auto 6px auto;
+          text-align: center;
         }
 
         .login-brand-tagline {
           font-size: 12px;
           color: var(--text-muted);
           margin-top: 2px;
+          text-align: center;
         }
 
         .login-form-title {
