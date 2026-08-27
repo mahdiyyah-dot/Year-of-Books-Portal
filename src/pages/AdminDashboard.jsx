@@ -291,9 +291,16 @@ function AdminDashboard({ user, onLogout }) {
       try {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const rawRows = XLSX.utils.sheet_to_json(ws);
+        
+        // Read and merge rows from ALL sheets in the workbook
+        let rawRows = [];
+        wb.SheetNames.forEach(sheetName => {
+          const ws = wb.Sheets[sheetName];
+          const sheetRows = XLSX.utils.sheet_to_json(ws);
+          if (Array.isArray(sheetRows)) {
+            rawRows = rawRows.concat(sheetRows);
+          }
+        });
 
         if (rawRows.length === 0) {
           throw new Error('The uploaded Excel sheet contains no rows.');
