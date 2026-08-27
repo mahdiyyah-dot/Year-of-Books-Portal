@@ -782,7 +782,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
               <h3 className="card-title">Log Reading Points</h3>
               <div className="card-desc">Enter the decimal points assigned to each student. Save when complete.</div>
               
-              <div className="selector-row" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div className="selector-row">
                 <select value={activeClass} onChange={(e) => {
                   setActiveClass(e.target.value);
                   setNewStudentClass(e.target.value); // Sync default modal selection
@@ -807,7 +807,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                     setShowAddStudentModal(true);
                   }}
                   disabled={!windowOpen || savingPoints}
-                  style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', width: 'auto', marginLeft: 'auto' }}
+                  style={{ padding: '8px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', width: 'auto' }}
                 >
                   ➕ Add Student
                 </button>
@@ -830,7 +830,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                 </div>
               ) : (
                 <div className="student-entry-list">
-                  {students.map(student => (
+                  {students.map((student, idx) => (
                     <div className="student-entry-row" key={student.id}>
                       <div className="student-info">
                         <div 
@@ -856,31 +856,29 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                         </div>
                       </div>
                       
-                      {/* Points stepper */}
-                      <div className="stepper-input-container">
-                        <button 
-                          className="stepper-btn" 
-                          onClick={() => handleStep(student.id, -0.1)}
-                          disabled={!windowOpen || savingPoints}
-                        >
-                          -
-                        </button>
-                        <input
-                          type="text"
-                          className="stepper-value"
-                          value={pointsData[student.id] || ''}
-                          onChange={(e) => handleInputChange(student.id, e.target.value)}
-                          placeholder="0.0"
-                          disabled={!windowOpen || savingPoints}
-                        />
-                        <button 
-                          className="stepper-btn" 
-                          onClick={() => handleStep(student.id, 0.1)}
-                          disabled={!windowOpen || savingPoints}
-                        >
-                          +
-                        </button>
-                      </div>
+                      {/* Simple numeric input field */}
+                      <input
+                        type="text"
+                        id={`point-input-${idx}`}
+                        className="point-input-field"
+                        inputMode="decimal"
+                        value={pointsData[student.id] || ''}
+                        onChange={(e) => handleInputChange(student.id, e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            const nextInput = document.getElementById(`point-input-${idx + 1}`);
+                            if (nextInput) {
+                              nextInput.focus();
+                            } else {
+                              e.target.blur();
+                            }
+                          }
+                        }}
+                        placeholder="0.0"
+                        disabled={!windowOpen || savingPoints}
+                      />
                     </div>
                   ))}
                 </div>

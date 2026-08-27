@@ -542,3 +542,55 @@ input:checked + .toggle-slider:before {
   position: relative;
   border: 1px solid var(--border);
 }
+
+/* Custom Selector Row for inputs */
+.selector-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+/* Custom Point Input Field (No Stepper) */
+.point-input-field {
+  width: 70px;
+  height: 38px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--dark-text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-main);
+  transition: var(--transition-fast);
+  box-sizing: border-box;
+}
+
+.point-input-field:focus {
+  border-color: var(--primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-light);
+  background-color: var(--bg-card);
+}
+
+.point-input-field:disabled {
+  background-color: rgba(0, 0, 0, 0.05);
+  color: var(--text-muted);
+  border-color: var(--border);
+  cursor: not-allowed;
+}
+
+/* Responsive Rules for Mobile layout */
+@media (max-width: 600px) {
+  .selector-row {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 8px !important;
+  }
+  
+  .selector-row select,
+  .selector-row button {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+}
