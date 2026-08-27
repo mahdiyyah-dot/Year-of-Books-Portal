@@ -645,11 +645,30 @@ function AdminDashboard({ user, onLogout }) {
     try {
       setLoadingMatrix(true);
 
-      // 1. Get all students roster
-      const { data: roster, error: rErr } = await supabase
-        .from('students')
-        .select('id, class, study_centre_code');
-      if (rErr) throw rErr;
+      // 1. Get all students roster using a paginated loop to bypass the 1000-row cap
+      let roster = [];
+      let start = 0;
+      const limit = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error: rErr } = await supabase
+          .from('students')
+          .select('id, class, study_centre_code')
+          .range(start, start + limit - 1);
+        
+        if (rErr) throw rErr;
+        
+        if (data && data.length > 0) {
+          roster = roster.concat(data);
+          start += limit;
+          if (data.length < limit) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
 
       // Group students count by centre code and class
       const schoolClassCount = {}; // code -> { M1: 0, M2: 0, ... }
@@ -770,11 +789,30 @@ function AdminDashboard({ user, onLogout }) {
       setLoadingLeaderboard(true);
       setStateRankings([]);
 
-      // Fetch all students
-      const { data: roster, error: rErr } = await supabase
-        .from('students')
-        .select('id, name, class, study_centre_code, register_number, study_centres(name)');
-      if (rErr) throw rErr;
+      // Fetch all students using a paginated loop to bypass the 1000-row cap
+      let roster = [];
+      let start = 0;
+      const limit = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error: rErr } = await supabase
+          .from('students')
+          .select('id, name, class, study_centre_code, register_number, study_centres(name)')
+          .range(start, start + limit - 1);
+        
+        if (rErr) throw rErr;
+        
+        if (data && data.length > 0) {
+          roster = roster.concat(data);
+          start += limit;
+          if (data.length < limit) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
 
       const studentIds = roster?.map(s => s.id) || [];
       if (studentIds.length === 0) return;
