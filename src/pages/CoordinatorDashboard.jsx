@@ -41,6 +41,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
   // Common active states
   const [activeMonth, setActiveMonth] = useState('2026-08');
+  const [availableMonths, setAvailableMonths] = useState(['2026-08', '2026-09', '2026-10']);
   const [windowOpen, setWindowOpen] = useState(true);
   const [activeClass, setActiveClass] = useState('M1');
 
@@ -109,6 +110,17 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
         if (!error) {
           setWindowOpen(checkData);
         }
+
+        // Get Available Months list
+        const { data: monthsData } = await supabase
+          .from('system_settings')
+          .select('*')
+          .eq('key', 'available_months')
+          .maybeSingle();
+
+        if (monthsData && Array.isArray(monthsData.value)) {
+          setAvailableMonths(monthsData.value);
+        }
       } catch (err) {
         console.error('Error fetching window config:', err);
       }
@@ -116,6 +128,14 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
     fetchConfig();
   }, [setupMode, profile?.code]);
+
+  const formatMonthLabel = (monthStr) => {
+    if (!monthStr || !monthStr.includes('-')) return monthStr;
+    const [year, month] = monthStr.split('-');
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthName = months[parseInt(month, 10) - 1] || month;
+    return `${monthName} ${year}`;
+  };
 
   // Fetch Students & Marks when activeClass or activeMonth or activeTab changes
   useEffect(() => {
@@ -795,9 +815,9 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                 </select>
 
                 <select value={activeMonth} onChange={(e) => setActiveMonth(e.target.value)} disabled={savingPoints}>
-                  <option value="2026-08">August 2026</option>
-                  <option value="2026-09">September 2026</option>
-                  <option value="2026-10">October 2026</option>
+                  {availableMonths.map(m => (
+                    <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                  ))}
                 </select>
 
                 <button 

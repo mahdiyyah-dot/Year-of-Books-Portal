@@ -50,6 +50,8 @@ function AdminDashboard({ user, onLogout }) {
   // Status Matrix states
   const [matrixData, setMatrixData] = useState([]);
   const [loadingMatrix, setLoadingMatrix] = useState(false);
+  const [availableMonths, setAvailableMonths] = useState(['2026-08', '2026-09', '2026-10']);
+  const [matrixMonth, setMatrixMonth] = useState('2026-08');
   // Filters for Status Matrix
   const [filterSearch, setFilterSearch] = useState('');
   const [filterDistrict, setFilterDistrict] = useState('');
@@ -74,12 +76,12 @@ function AdminDashboard({ user, onLogout }) {
     fetchStudyCentres();
   }, []);
 
-  // Fetch Matrix board on tab or month shift
+  // Fetch Matrix board on tab or matrixMonth shift
   useEffect(() => {
-    if (activeTab === 'status') {
+    if (activeTab === 'status' && matrixMonth) {
       fetchStatusMatrix();
     }
-  }, [activeTab, activeMonth, studyCentres]);
+  }, [activeTab, matrixMonth, studyCentres]);
 
   // Fetch State Leaderboard on tab/mode change
   useEffect(() => {
@@ -99,6 +101,7 @@ function AdminDashboard({ user, onLogout }) {
         .single();
       if (monthData) {
         setActiveMonth(monthData.value.month);
+        setMatrixMonth(monthData.value.month); // Initialize local status board month
       }
 
       // Get Global Window state
@@ -110,9 +113,35 @@ function AdminDashboard({ user, onLogout }) {
       if (windowData) {
         setGlobalMode(windowData.value.mode);
       }
+
+      // Get Available Months list
+      const { data: monthsData } = await supabase
+        .from('system_settings')
+        .select('*')
+        .eq('key', 'available_months')
+        .maybeSingle();
+
+      if (monthsData && Array.isArray(monthsData.value)) {
+        setAvailableMonths(monthsData.value);
+      } else {
+        // Self-healing database seed if missing
+        const defaultMonths = ['2026-08', '2026-09', '2026-10'];
+        await supabase
+          .from('system_settings')
+          .upsert({ key: 'available_months', value: defaultMonths });
+        setAvailableMonths(defaultMonths);
+      }
     } catch (err) {
       console.error('Error loading configuration settings:', err);
     }
+  };
+
+  const formatMonthLabel = (monthStr) => {
+    if (!monthStr || !monthStr.includes('-')) return monthStr;
+    const [year, month] = monthStr.split('-');
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthName = months[parseInt(month, 10) - 1] || month;
+    return `${monthName} ${year}`;
   };
 
   // Fetch study centres list
@@ -159,6 +188,63 @@ function AdminDashboard({ user, onLogout }) {
       if (error) throw error;
     } catch (err) {
       alert('Error updating global upload window mode: ' + err.message);
+    }
+  };
+
+  const handleAddMonth = async () => {
+    const month = document.getElementById('new-month-select')?.value;
+    const year = document.getElementById('new-year-select')?.value;
+    if (!month || !year) return;
+
+    const newMonthStr = `${year}-${month}`;
+    if (availableMonths.includes(newMonthStr)) {
+      alert('This month is already registered.');
+      return;
+    }
+
+    const updated = [...availableMonths, newMonthStr].sort();
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({ key: 'available_months', value: updated });
+
+      if (error) throw error;
+      setAvailableMonths(updated);
+      alert(`Month "${formatMonthLabel(newMonthStr)}" added successfully!`);
+    } catch (err) {
+      alert('Failed to add month: ' + err.message);
+    }
+  };
+
+  const handleRemoveMonth = async (monthStr) => {
+    if (availableMonths.length <= 1) {
+      alert('You must keep at least one active month.');
+      return;
+    }
+
+    const confirmDel = window.confirm(`Are you sure you want to delete month "${formatMonthLabel(monthStr)}"? This will not delete points records, but will remove it from all dropdowns.`);
+    if (!confirmDel) return;
+
+    const updated = availableMonths.filter(m => m !== monthStr);
+    try {
+      const { error } = await supabase
+        .from('system_settings')
+        .upsert({ key: 'available_months', value: updated });
+
+      if (error) throw error;
+      setAvailableMonths(updated);
+      
+      // If deleted month was the active month, set active month to the first available month
+      if (activeMonth === monthStr) {
+        handleUpdateMonth(updated[0]);
+      }
+      
+      // If deleted month was the matrix month, reset it
+      if (matrixMonth === monthStr) {
+        setMatrixMonth(updated[0]);
+      }
+    } catch (err) {
+      alert('Failed to remove month: ' + err.message);
     }
   };
 
@@ -585,7 +671,7 @@ function AdminDashboard({ user, onLogout }) {
       const { data: scoreRecords, error: sErr } = await supabase
         .from('points')
         .select('student_id')
-        .eq('month', activeMonth);
+        .eq('month', matrixMonth);
       if (sErr) throw sErr;
 
       // Group points uploads by centre code and class
@@ -608,7 +694,7 @@ function AdminDashboard({ user, onLogout }) {
       const { data: reports, error: repErr } = await supabase
         .from('program_reports')
         .select('study_centre_code, id')
-        .eq('month', activeMonth);
+        .eq('month', matrixMonth);
       if (repErr) throw repErr;
 
       const reportSubmitted = {}; // code -> boolean
@@ -689,7 +775,7 @@ function AdminDashboard({ user, onLogout }) {
       const studentIds = roster?.map(s => s.id) || [];
       if (studentIds.length === 0) return;
 
-      // Fetch points
+      // Fetch points directly (fixes 414 URI Too Long error when roster is large)
       let scoreQuery = supabase
         .from('points')
         .select('student_id, points');
@@ -697,7 +783,7 @@ function AdminDashboard({ user, onLogout }) {
       if (leaderboardPeriod === 'monthly') {
         scoreQuery = scoreQuery.eq('month', activeMonth);
       }
-      const { data: scores, error: sErr } = await scoreQuery.in('student_id', studentIds);
+      const { data: scores, error: sErr } = await scoreQuery;
       if (sErr) throw sErr;
 
       const scoreTotals = {};
@@ -1152,9 +1238,9 @@ function AdminDashboard({ user, onLogout }) {
                 <div>
                   <label>System Active Month</label>
                   <select value={activeMonth} onChange={(e) => handleUpdateMonth(e.target.value)}>
-                    <option value="2026-08">August 2026</option>
-                    <option value="2026-09">September 2026</option>
-                    <option value="2026-10">October 2026</option>
+                    {availableMonths.map(m => (
+                      <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -1210,6 +1296,65 @@ function AdminDashboard({ user, onLogout }) {
                 </table>
               </div>
             </div>
+
+            {/* Academic Months Manager */}
+            <div className="card">
+              <h3 className="card-title">Academic Months Manager</h3>
+              <div className="card-desc">Add new academic months or delete unused months. All dropdown selectors sync automatically.</div>
+              
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                {availableMonths.map(m => (
+                  <div key={m} style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: 'var(--bg-main)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 12px', fontSize: '13px' }}>
+                    <strong>{formatMonthLabel(m)}</strong> ({m})
+                    <button 
+                      type="button" 
+                      onClick={() => handleRemoveMonth(m)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-pink)', padding: '2px', fontWeight: 'bold' }}
+                      title="Delete Month"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Month</label>
+                  <select id="new-month-select" defaultValue="08" style={{ width: '130px', padding: '8px', borderRadius: '6px' }}>
+                    <option value="01">January</option>
+                    <option value="02">February</option>
+                    <option value="03">March</option>
+                    <option value="04">April</option>
+                    <option value="05">May</option>
+                    <option value="06">June</option>
+                    <option value="07">July</option>
+                    <option value="08">August</option>
+                    <option value="09">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>Year</label>
+                  <select id="new-year-select" defaultValue="2026" style={{ width: '100px', padding: '8px', borderRadius: '6px' }}>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                    <option value="2029">2029</option>
+                  </select>
+                </div>
+                <button 
+                  type="button" 
+                  className="btn btn-primary animate-slide" 
+                  onClick={handleAddMonth}
+                  style={{ padding: '9px 16px', fontSize: '13px', height: '38px' }}
+                >
+                  ➕ Add Month
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1223,6 +1368,16 @@ function AdminDashboard({ user, onLogout }) {
             
             {/* Status Filter Matrix Controls */}
             <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+              <select
+                value={matrixMonth}
+                onChange={(e) => setMatrixMonth(e.target.value)}
+                style={{ flex: 1, minWidth: '150px', padding: '10px 14px' }}
+              >
+                {availableMonths.map(m => (
+                  <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                ))}
+              </select>
+
               <input
                 type="text"
                 placeholder="Search code or school name..."
@@ -1289,9 +1444,9 @@ function AdminDashboard({ user, onLogout }) {
                   <tbody>
                     {filteredMatrix.map(item => (
                       <tr key={item.id}>
-                        <td><strong>{item.code}</strong></td>
-                        <td>{item.name}</td>
-                        <td>{item.district}</td>
+                      <td><strong>{item.code}</strong></td>
+                      <td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>{item.name}</td>
+                      <td>{item.district}</td>
                         {['M1', 'M2', 'M3', 'M4', 'M5'].map(cls => {
                           const status = item.classes[cls];
                           return (
