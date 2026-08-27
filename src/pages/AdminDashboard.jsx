@@ -956,7 +956,7 @@ function AdminDashboard({ user, onLogout }) {
           </svg>
           <div className="brand-title">
             MAHDIYYAH
-            <span>Year of Books • Admin Console</span>
+            <span>Year of Books • Admin Console <small style={{background: 'rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', padding: '2px 6px', borderRadius: '4px', marginLeft: '6px', fontSize: '10px', fontWeight: 'bold'}}>v1.3 (Idempotent Import)</small></span>
           </div>
         </div>
         <div className="user-profile-menu">
