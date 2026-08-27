@@ -44,6 +44,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   const [availableMonths, setAvailableMonths] = useState(['2026-08', '2026-09', '2026-10']);
   const [windowOpen, setWindowOpen] = useState(true);
   const [activeClass, setActiveClass] = useState('M1');
+  const [leaderboardClass, setLeaderboardClass] = useState('ALL'); // 'ALL', 'M1', 'M2', 'M3', 'M4', 'M5'
 
   // Manual Add Student States
   const [showAddStudentModal, setShowAddStudentModal] = useState(false);
@@ -1153,101 +1154,128 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                 </button>
               </div>
 
-              {leaderboardMode === 'monthly' && (
-                <div className="selector-row">
-                  <select value={activeMonth} onChange={(e) => setActiveMonth(e.target.value)}>
-                    <option value="2026-08">August 2026</option>
-                    <option value="2026-09">September 2026</option>
-                    <option value="2026-10">October 2026</option>
+              <div className="selector-row" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                <select
+                  value={leaderboardClass}
+                  onChange={(e) => setLeaderboardClass(e.target.value)}
+                  style={{ flex: 1, minWidth: '150px' }}
+                >
+                  <option value="ALL">All Classes (School-wide)</option>
+                  <option value="M1">Class M1 Ranks</option>
+                  <option value="M2">Class M2 Ranks</option>
+                  <option value="M3">Class M3 Ranks</option>
+                  <option value="M4">Class M4 Ranks</option>
+                  <option value="M5">Class M5 Ranks</option>
+                </select>
+
+                {leaderboardMode === 'monthly' && (
+                  <select 
+                    value={activeMonth} 
+                    onChange={(e) => setActiveMonth(e.target.value)}
+                    style={{ flex: 1, minWidth: '150px' }}
+                  >
+                    {availableMonths.map(m => (
+                      <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                    ))}
                   </select>
-                </div>
-              )}
+                )}
+              </div>
 
               {loadingLeaderboard ? (
                 <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
                   Calculating rankings...
                 </div>
-              ) : localRankings.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
-                  No point records found.
-                </div>
-              ) : (
-                <div>
-                  {/* Top 3 Podium Cards */}
-                  {localRankings.length > 0 && (
-                    <div className="podium-container animate-fade">
-                      {/* 1st Place */}
-                      {localRankings[0] && (
-                        <div className="podium-column podium-first">
-                          <div className="podium-avatar-wrapper">
-                            <div className="podium-avatar" style={{ backgroundColor: getAvatarColor(localRankings[0].name) }}>
-                              {getInitials(localRankings[0].name)}
-                            </div>
-                            <span className="podium-rank-badge">1</span>
-                          </div>
-                          <div className="podium-name">{localRankings[0].name}</div>
-                          <div className="podium-subtext">Class {localRankings[0].class}</div>
-                          <div className="podium-score">{localRankings[0].score} pts</div>
-                        </div>
-                      )}
+              ) : (() => {
+                const displayedRankings = leaderboardClass === 'ALL'
+                  ? localRankings
+                  : localRankings.filter(st => st.class === leaderboardClass);
 
-                      {/* 2nd Place */}
-                      {localRankings[1] && (
-                        <div className="podium-column podium-second">
-                          <div className="podium-avatar-wrapper">
-                            <div className="podium-avatar" style={{ backgroundColor: getAvatarColor(localRankings[1].name) }}>
-                              {getInitials(localRankings[1].name)}
-                            </div>
-                            <span className="podium-rank-badge">2</span>
-                          </div>
-                          <div className="podium-name">{localRankings[1].name}</div>
-                          <div className="podium-subtext">Class {localRankings[1].class}</div>
-                          <div className="podium-score">{localRankings[1].score} pts</div>
-                        </div>
-                      )}
-
-                      {/* 3rd Place */}
-                      {localRankings[2] && (
-                        <div className="podium-column podium-third">
-                          <div className="podium-avatar-wrapper">
-                            <div className="podium-avatar" style={{ backgroundColor: getAvatarColor(localRankings[2].name) }}>
-                              {getInitials(localRankings[2].name)}
-                            </div>
-                            <span className="podium-rank-badge">3</span>
-                          </div>
-                          <div className="podium-name">{localRankings[2].name}</div>
-                          <div className="podium-subtext">Class {localRankings[2].class}</div>
-                          <div className="podium-score">{localRankings[2].score} pts</div>
-                        </div>
-                      )}
+                if (displayedRankings.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+                      No point records found for class category.
                     </div>
-                  )}
+                  );
+                }
 
-                  {/* List of remaining ranks */}
-                  <div className="leaderboard-list">
-                    {localRankings.slice(3).map((st, index) => (
-                      <div className="leaderboard-row animate-fade" key={st.id}>
-                        <div className="leaderboard-left">
-                          <span className="leaderboard-rank">{index + 4}</span>
-                          <div 
-                            className="leaderboard-avatar" 
-                            style={{ backgroundColor: getAvatarColor(st.name) }}
-                          >
-                            {getInitials(st.name)}
+                return (
+                  <div>
+                    {/* Top 3 Podium Cards */}
+                    {displayedRankings.length > 0 && (
+                      <div className="podium-container animate-fade">
+                        {/* 1st Place */}
+                        {displayedRankings[0] && (
+                          <div className="podium-column podium-first">
+                            <div className="podium-avatar-wrapper">
+                              <div className="podium-avatar" style={{ backgroundColor: getAvatarColor(displayedRankings[0].name) }}>
+                                {getInitials(displayedRankings[0].name)}
+                              </div>
+                              <span className="podium-rank-badge">1</span>
+                            </div>
+                            <div className="podium-name">{displayedRankings[0].name}</div>
+                            <div className="podium-subtext">Class {displayedRankings[0].class}</div>
+                            <div className="podium-score">{displayedRankings[0].score} pts</div>
                           </div>
-                          <div className="leaderboard-details">
-                            <span className="leaderboard-name">{st.name}</span>
-                            <span className="leaderboard-sub">Class {st.class} • Reg: {st.register_number}</span>
+                        )}
+
+                        {/* 2nd Place */}
+                        {displayedRankings[1] && (
+                          <div className="podium-column podium-second">
+                            <div className="podium-avatar-wrapper">
+                              <div className="podium-avatar" style={{ backgroundColor: getAvatarColor(displayedRankings[1].name) }}>
+                                {getInitials(displayedRankings[1].name)}
+                              </div>
+                              <span className="podium-rank-badge">2</span>
+                            </div>
+                            <div className="podium-name">{displayedRankings[1].name}</div>
+                            <div className="podium-subtext">Class {displayedRankings[1].class}</div>
+                            <div className="podium-score">{displayedRankings[1].score} pts</div>
                           </div>
-                        </div>
-                        <div className="leaderboard-right">
-                          <span className="leaderboard-score-pill">{st.score} pts</span>
-                        </div>
+                        )}
+
+                        {/* 3rd Place */}
+                        {displayedRankings[2] && (
+                          <div className="podium-column podium-third">
+                            <div className="podium-avatar-wrapper">
+                              <div className="podium-avatar" style={{ backgroundColor: getAvatarColor(displayedRankings[2].name) }}>
+                                {getInitials(displayedRankings[2].name)}
+                              </div>
+                              <span className="podium-rank-badge">3</span>
+                            </div>
+                            <div className="podium-name">{displayedRankings[2].name}</div>
+                            <div className="podium-subtext">Class {displayedRankings[2].class}</div>
+                            <div className="podium-score">{displayedRankings[2].score} pts</div>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    )}
+
+                    {/* List of remaining ranks */}
+                    <div className="leaderboard-list">
+                      {displayedRankings.slice(3).map((st, index) => (
+                        <div className="leaderboard-row animate-fade" key={st.id}>
+                          <div className="leaderboard-left">
+                            <span className="leaderboard-rank">{index + 4}</span>
+                            <div 
+                              className="leaderboard-avatar" 
+                              style={{ backgroundColor: getAvatarColor(st.name) }}
+                            >
+                              {getInitials(st.name)}
+                            </div>
+                            <div className="leaderboard-details">
+                              <span className="leaderboard-name">{st.name}</span>
+                              <span className="leaderboard-sub">Class {st.class} • Reg: {st.register_number}</span>
+                            </div>
+                          </div>
+                          <div className="leaderboard-right">
+                            <span className="leaderboard-score-pill">{st.score} pts</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         )}
