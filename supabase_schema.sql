@@ -340,8 +340,9 @@ begin
   if v_id is not null then
     -- User already exists! We can update their password and username metadata
     update auth.users 
-    set encrypted_password = crypt(p_password, gen_salt('bf')),
+    set encrypted_password = crypt(p_password, gen_salt('bf', 10)),
         raw_user_meta_data = jsonb_build_object('username', p_username),
+        aud = 'authenticated',
         updated_at = now()
     where id = v_id;
     
@@ -380,6 +381,7 @@ begin
       created_at,
       updated_at,
       role,
+      aud,
       confirmation_token,
       email_change,
       email_change_token_new,
@@ -388,12 +390,13 @@ begin
       p_id,
       '00000000-0000-0000-0000-000000000000',
       p_email,
-      crypt(p_password, gen_salt('bf')),
+      crypt(p_password, gen_salt('bf', 10)),
       now(),
       '{"provider":"email","providers":["email"]}',
       jsonb_build_object('username', p_username),
       now(),
       now(),
+      'authenticated',
       'authenticated',
       '',
       '',
