@@ -1187,9 +1187,10 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                     onChange={(e) => setActiveMonth(e.target.value)}
                     style={{ flex: 1, minWidth: '150px' }}
                   >
-                    {availableMonths.map(m => (
-                      <option key={m} value={m}>{formatMonthLabel(m)}</option>
-                    ))}
+                    {availableMonths.map(m => {
+                      const monthVal = typeof m === 'string' ? m : m.month;
+                      return <option key={monthVal} value={monthVal}>{formatMonthLabel(monthVal)}</option>;
+                    })}
                   </select>
                 )}
               </div>
