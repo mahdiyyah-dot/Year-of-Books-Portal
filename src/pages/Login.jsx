@@ -31,17 +31,13 @@ function Login() {
       <div className="login-card animate-slide">
         {/* Brand Logo Header */}
         <div className="login-logo-section">
-          <svg className="login-logo-svg" viewBox="0 0 100 100" width="100" height="100">
-            {/* Logo shapes: book spines */}
-            <path d="M22,75 L22,30 Q22,24 34,24 L34,75 Z" fill="#29A2E1" />
-            <path d="M39,75 L39,46 Q39,40 51,40 L51,75 Z" fill="#713F98" />
-            <path d="M56,75 L56,18 Q56,12 68,12 L68,75 Z" fill="#D01F82" />
-            {/* Star above middle book */}
-            <polygon points="45,15 48,22 56,23 50,28 51,35 45,31 39,35 40,28 34,23 42,22" fill="#FCB913" />
-          </svg>
-          <h1 className="login-brand-name">MAHDIYYAH</h1>
-          <h2 className="login-brand-title">YEAR OF BOOKS</h2>
-          <p className="login-brand-tagline">“She reads, She leads”</p>
+          <img 
+            src="/logo.jpg" 
+            alt="Mahdiyyah Year of Books - My Pulse Tracker" 
+            className="login-brand-img"
+          />
+          <div className="login-tracker-badge">MY PULSE TRACKER</div>
+          <p className="login-brand-tagline">Reading program under Mahdiyyah Year of Books</p>
         </div>
 
         {/* Login Form */}
@@ -148,31 +144,31 @@ function Login() {
           margin-bottom: 28px;
         }
 
-        .login-logo-svg {
-          filter: drop-shadow(0 6px 12px rgba(113, 63, 152, 0.1));
+        .login-brand-img {
+          width: 140px;
+          height: auto;
+          border-radius: 12px;
           margin-bottom: 12px;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+          object-fit: contain;
         }
 
-        .login-brand-name {
-          font-size: 20px;
+        .login-tracker-badge {
+          display: inline-block;
+          font-size: 14px;
           font-weight: 800;
-          color: var(--text-main);
-          letter-spacing: 2px;
-          margin-bottom: 2px;
-        }
-
-        .login-brand-title {
-          font-size: 15px;
-          font-weight: 700;
+          letter-spacing: 1.5px;
           color: var(--primary);
-          letter-spacing: 1px;
+          background: rgba(113, 63, 152, 0.08);
+          padding: 4px 14px;
+          border-radius: 20px;
           margin-bottom: 6px;
         }
 
         .login-brand-tagline {
-          font-size: 13px;
-          font-style: italic;
+          font-size: 12px;
           color: var(--text-muted);
+          margin-top: 2px;
         }
 
         .login-form-title {

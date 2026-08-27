@@ -76,16 +76,14 @@ function App() {
     return (
       <div className="brand-loader-container">
         <div className="brand-loader-spin">
-          <svg className="yob-svg-loader" viewBox="0 0 100 100" width="80" height="80">
-            {/* Book Spines Drawing mimicking Logo */}
-            <path d="M25,75 L25,30 Q25,25 35,25 L35,75 Z" fill="#29A2E1" />
-            <path d="M40,75 L40,45 Q40,40 50,40 L50,75 Z" fill="#713F98" />
-            <path d="M55,75 L55,20 Q55,15 65,15 L65,75 Z" fill="#D01F82" />
-            <polygon points="45,15 48,22 55,23 50,28 51,35 45,31 39,35 40,28 35,23 42,22" fill="#FCB913" />
-          </svg>
+          <img 
+            src="/logo.jpg" 
+            alt="Mahdiyyah Year of Books" 
+            style={{ width: '80px', height: 'auto', borderRadius: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)' }} 
+          />
         </div>
-        <div className="brand-loader-text">Mahdiyyah Year of Books</div>
-        <div className="brand-loader-sub">Loading portal...</div>
+        <div className="brand-loader-text">MY PULSE TRACKER</div>
+        <div className="brand-loader-sub">Mahdiyyah Year of Books</div>
       </div>
     );
   }

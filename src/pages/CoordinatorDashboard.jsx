@@ -772,15 +772,14 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       {/* Dashboard Top Header Bar */}
       <header className="dashboard-header">
         <div className="brand-section">
-          <svg viewBox="0 0 100 100" width="34" height="34">
-            <path d="M22,75 L22,30 Q22,24 34,24 L34,75 Z" fill="#29A2E1" />
-            <path d="M39,75 L39,46 Q39,40 51,40 L51,75 Z" fill="#713F98" />
-            <path d="M56,75 L56,18 Q56,12 68,12 L68,75 Z" fill="#D01F82" />
-            <polygon points="45,15 48,22 56,23 50,28 51,35 45,31 39,35 40,28 34,23 42,22" fill="#FCB913" />
-          </svg>
+          <img 
+            src="/logo.jpg" 
+            alt="Mahdiyyah Year of Books" 
+            style={{ width: '38px', height: '38px', objectFit: 'contain', borderRadius: '6px' }} 
+          />
           <div className="brand-title">
-            MAHDIYYAH
-            <span>{profile?.name} ({profile?.code})</span>
+            MY PULSE TRACKER
+            <span>Mahdiyyah Year of Books • {profile?.name} ({profile?.code})</span>
           </div>
         </div>
         <div className="user-profile-menu">
