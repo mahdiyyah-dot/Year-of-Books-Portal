@@ -418,12 +418,22 @@ function AdminDashboard({ user, onLogout }) {
     const studentRecords = [];
     let skippedCount = 0;
     const errorsList = [];
+    let tempCounter = 1;
 
     for (const row of rows) {
-      const regNum = row['Register Number']?.toString().trim();
+      let regNum = row['Register Number']?.toString().trim();
       const name = row['Student Name']?.toString().trim();
       let sClass = row['Class']?.toString().trim().toUpperCase(); // M1-M5
       const scCode = row['Study Centre Code']?.toString().trim();
+
+      // Normalize missing or placeholder register numbers
+      const isPlaceholder = !regNum || 
+                            ['N/A', 'NILL', 'NA', 'NIL', 'NULL'].includes(regNum.toUpperCase());
+      
+      if (isPlaceholder) {
+        // Generate a unique temporary register number
+        regNum = `TEMP-${scCode || 'UNKNOWN'}-${Date.now().toString().slice(-6)}-${tempCounter++}`;
+      }
 
       // If specific class filter is selected and class is missing in file, assign to it.
       if (!sClass && importStudentClass !== 'ALL') {
@@ -464,10 +474,17 @@ function AdminDashboard({ user, onLogout }) {
 
     try {
       if (studentRecords.length > 0) {
+        // De-duplicate array by register_number to avoid Postgres duplicate payload crash
+        const uniqueRecordsMap = {};
+        studentRecords.forEach(record => {
+          uniqueRecordsMap[record.register_number] = record;
+        });
+        const uniqueStudentRecords = Object.values(uniqueRecordsMap);
+        
         // Chunk upserts to prevent database payload limits (chunks of 200)
         const chunkSize = 200;
-        for (let i = 0; i < studentRecords.length; i += chunkSize) {
-          const chunk = studentRecords.slice(i, i + chunkSize);
+        for (let i = 0; i < uniqueStudentRecords.length; i += chunkSize) {
+          const chunk = uniqueStudentRecords.slice(i, i + chunkSize);
           const { error } = await supabase
             .from('students')
             .upsert(chunk, { onConflict: 'register_number' });
