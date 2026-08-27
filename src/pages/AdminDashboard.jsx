@@ -427,6 +427,36 @@ function AdminDashboard({ user, onLogout }) {
     const errorsList = [];
     let tempCounter = 1;
 
+    try {
+      // Pre-validate that all Study Centre Codes in the spreadsheet actually exist in the database
+      const { data: dbCentres, error: dbErr } = await supabase
+        .from('study_centres')
+        .select('code');
+      
+      if (dbErr) throw dbErr;
+
+      const validCodes = new Set(dbCentres?.map(c => c.code.trim()) || []);
+      const invalidCodes = new Set();
+
+      // Gather any invalid codes first
+      for (const row of rows) {
+        const scCode = row['Study Centre Code']?.toString().trim();
+        if (scCode && !validCodes.has(scCode)) {
+          invalidCodes.add(scCode);
+        }
+      }
+
+      if (invalidCodes.size > 0) {
+        throw new Error(`The spreadsheet contains Study Centre Codes that are not registered in the database: ${Array.from(invalidCodes).join(', ')}. Please upload these study centres first or correct their codes in the Excel file.`);
+      }
+    } catch (validationErr) {
+      setImportMsg({
+        text: `Student import failed: ${validationErr.message}`,
+        type: 'error'
+      });
+      return;
+    }
+
     for (const row of rows) {
       let regNum = row['Register Number']?.toString().trim();
       const name = row['Student Name']?.toString().trim();
