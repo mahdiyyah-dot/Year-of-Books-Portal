@@ -179,10 +179,7 @@ create policy "Study centres can read their own profile"
 
 create policy "Study centres can update their own profile fields"
   on study_centres for update using (auth.uid() = id)
-  with check (
-    auth.uid() = id 
-    and (is_active_override = is_active_override) -- Protect override field from modification
-  );
+  with check (auth.uid() = id);
 
 
 -- Policies for STUDENTS
