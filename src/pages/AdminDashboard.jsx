@@ -745,10 +745,13 @@ function AdminDashboard({ user, onLogout }) {
           pointState = 'empty';
         }
 
+        const totalStudents = (targetCount.M1 || 0) + (targetCount.M2 || 0) + (targetCount.M3 || 0) + (targetCount.M4 || 0) + (targetCount.M5 || 0);
+
         return {
           ...centre,
           classes: classStatuses,
           pointState,
+          totalStudents,
           reportState: reportSubmitted[centre.code] ? 'submitted' : 'pending'
         };
       });
@@ -837,7 +840,8 @@ function AdminDashboard({ user, onLogout }) {
             code: centre.code,
             place: `${centre.place}, ${centre.district}`,
             studentCount,
-            score: average // uses 'score' key so it maps easily to podium render
+            score: average, // uses 'score' key so it maps easily to podium render
+            totalScore: parseFloat(sumScores.toFixed(1))
           };
         })
         .sort((a, b) => b.score - a.score);
@@ -1417,21 +1421,21 @@ function AdminDashboard({ user, onLogout }) {
                     <tr>
                       <th>Code</th>
                       <th>Study Centre Name</th>
-                      <th>District</th>
-                      <th>Class M1</th>
-                      <th>Class M2</th>
-                      <th>Class M3</th>
-                      <th>Class M4</th>
-                      <th>Class M5</th>
+                      <th style={{ textAlign: 'center' }}>Students</th>
+                      <th style={{ textAlign: 'center' }}>M1</th>
+                      <th style={{ textAlign: 'center' }}>M2</th>
+                      <th style={{ textAlign: 'center' }}>M3</th>
+                      <th style={{ textAlign: 'center' }}>M4</th>
+                      <th style={{ textAlign: 'center' }}>M5</th>
                       <th>Reports Upload</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredMatrix.map(item => (
                       <tr key={item.id}>
-                      <td><strong>{item.code}</strong></td>
-                      <td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>{item.name}</td>
-                      <td>{item.district}</td>
+                        <td><strong>{item.code}</strong></td>
+                        <td style={{ maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.name}>{item.name}</td>
+                        <td style={{ textAlign: 'center' }}><strong>{item.totalStudents || 0}</strong></td>
                         {['M1', 'M2', 'M3', 'M4', 'M5'].map(cls => {
                           const status = item.classes[cls];
                           return (
@@ -1549,7 +1553,12 @@ function AdminDashboard({ user, onLogout }) {
                       </div>
                       <div className="podium-name">{stateRankings[0].name}</div>
                       <div className="podium-subtext">{stateRankings[0].place || stateRankings[0].centreName}</div>
-                      <div className="podium-score">{stateRankings[0].score} pts</div>
+                      <div className="podium-score">
+                        {leaderboardTab === 'centres'
+                          ? `Avg: ${stateRankings[0].score} | Total: ${stateRankings[0].totalScore || 0}`
+                          : `${stateRankings[0].score} pts`
+                        }
+                      </div>
                     </div>
                   )}
 
@@ -1564,7 +1573,12 @@ function AdminDashboard({ user, onLogout }) {
                       </div>
                       <div className="podium-name">{stateRankings[1].name}</div>
                       <div className="podium-subtext">{stateRankings[1].place || stateRankings[1].centreName}</div>
-                      <div className="podium-score">{stateRankings[1].score} pts</div>
+                      <div className="podium-score">
+                        {leaderboardTab === 'centres'
+                          ? `Avg: ${stateRankings[1].score} | Total: ${stateRankings[1].totalScore || 0}`
+                          : `${stateRankings[1].score} pts`
+                        }
+                      </div>
                     </div>
                   )}
 
@@ -1579,7 +1593,12 @@ function AdminDashboard({ user, onLogout }) {
                       </div>
                       <div className="podium-name">{stateRankings[2].name}</div>
                       <div className="podium-subtext">{stateRankings[2].place || stateRankings[2].centreName}</div>
-                      <div className="podium-score">{stateRankings[2].score} pts</div>
+                      <div className="podium-score">
+                        {leaderboardTab === 'centres'
+                          ? `Avg: ${stateRankings[2].score} | Total: ${stateRankings[2].totalScore || 0}`
+                          : `${stateRankings[2].score} pts`
+                        }
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1598,14 +1617,17 @@ function AdminDashboard({ user, onLogout }) {
                           <span className="leaderboard-sub">
                             {leaderboardTab === 'students' || leaderboardTab === 'classes'
                               ? `Class ${item.class} • ${item.centreName} • Reg: ${item.reg}`
-                              : `District: ${item.place} • Students: ${item.studentCount}`
+                              : `District: ${item.place} • Students: ${item.studentCount} • Total Points: ${item.totalScore || 0}`
                             }
                           </span>
                         </div>
                       </div>
                       <div className="leaderboard-right">
                         <span className="leaderboard-score-pill">
-                          {item.score} {(leaderboardTab === 'students' || leaderboardTab === 'classes') ? 'pts' : 'avg pts'}
+                          {leaderboardTab === 'centres' 
+                            ? `Avg: ${item.score} pts` 
+                            : `${item.score} pts`
+                          }
                         </span>
                       </div>
                     </div>
