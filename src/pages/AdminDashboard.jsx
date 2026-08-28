@@ -1086,14 +1086,28 @@ function AdminDashboard({ user, onLogout }) {
                   <div className="print-program-meta">Conducted Date: {rep.date}</div>
                   <p className="print-program-desc">{rep.description}</p>
                   
-                  {/* Photo attachments */}
+                  {/* Media attachments */}
                   {rep.program_photos && rep.program_photos.length > 0 && (
                     <div className="print-photos-grid">
-                      {rep.program_photos.map(ph => (
-                        <div className="print-photo-wrapper" key={ph.id}>
-                          <img src={ph.photo_url} alt="Activity attachment" />
-                        </div>
-                      ))}
+                      {rep.program_photos.map(ph => {
+                        const isDrive = ph.photo_url.includes('drive.google.com');
+                        const driveIdMatch = ph.photo_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || ph.photo_url.match(/id=([a-zA-Z0-9_-]+)/);
+                        const thumbUrl = isDrive && driveIdMatch ? `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w800` : ph.photo_url;
+                        return (
+                          <div className="print-photo-wrapper" key={ph.id}>
+                            <a href={ph.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', height: '100%', textDecoration: 'none' }}>
+                              <img 
+                                src={thumbUrl} 
+                                alt="Activity attachment" 
+                                onError={(e) => {
+                                  e.target.style.display = 'none';
+                                  e.target.parentNode.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;background:#f1f5f9;border-radius:6px;color:#713F98;font-weight:bold;font-size:12px;text-align:center;padding:8px;">🎥<br/>Google Drive Video/Media<br/><span style=\"font-size:10px;color:#666;font-weight:normal;\">Click to open</span></div>';
+                                }}
+                              />
+                            </a>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

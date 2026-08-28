@@ -534,18 +534,59 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
     }
   };
 
-  // Image Selection Preview handler
+  // Google Drive Automated Webhook URL
+  const GOOGLE_DRIVE_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxtELY04jOSpT6wvg5uoPr-EZDA9YY13AOiSVPui5uQ_0HTxVe_hL7Fyg8n9dOd1OClKg/exec';
+
+  // Helper: Upload file to Google Drive Webhook
+  const uploadFileToGoogleDrive = async (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const base64Data = reader.result.split(',')[1];
+          const response = await fetch(GOOGLE_DRIVE_WEBHOOK_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              collegeCode: profile?.code || 'UNKNOWN',
+              collegeName: profile?.name || 'Study Centre',
+              fileName: file.name,
+              mimeType: file.type || 'application/octet-stream',
+              base64Data: base64Data
+            })
+          });
+          const resJson = await response.json();
+          if (resJson && resJson.success) {
+            resolve(resJson.previewUrl || resJson.fileUrl);
+          } else {
+            reject(new Error(resJson?.error || 'Failed to upload to Google Drive'));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = (err) => reject(err);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Media Selection (Photos & Videos) handler
   const handlePhotoSelect = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
     setProgramPhotos(prev => [...prev, ...files]);
 
-    // Generate browser object preview URLs
+    // Generate previews
     files.forEach(file => {
+      const isVideo = file.type.startsWith('video/');
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPhotoPreviews(prev => [...prev, reader.result]);
+        setPhotoPreviews(prev => [...prev, {
+          url: reader.result,
+          name: file.name,
+          isVideo: isVideo,
+          size: (file.size / (1024 * 1024)).toFixed(1) + ' MB'
+        }]);
       };
       reader.readAsDataURL(file);
     });
@@ -556,7 +597,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
     setPhotoPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Submit report + upload images
+  // Submit report + upload media to 5TB Google Drive
   const handleReportSubmit = async (e) => {
     e.preventDefault();
     if (!isSubmissionAllowed) {
@@ -587,39 +628,28 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
       if (rError) throw rError;
 
-      // 2. Upload images if chosen
+      // 2. Upload media (photos & videos) to 5TB Google Drive
       if (programPhotos.length > 0) {
         const photoUrls = [];
 
-        for (const file of programPhotos) {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${newReport.id}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-          const filePath = `${profile.code}/${activeMonth}/${fileName}`;
-
-          // Upload file to Supabase Storage Bucket 'program-photos'
-          const { error: uploadError, data } = await supabase.storage
-            .from('program-photos')
-            .upload(filePath, file);
-
-          if (uploadError) {
-            // Storage bucket missing fallback: use base64 encoding to verify upload capability inline
-            console.warn('Storage bucket upload failed, falling back to base64...', uploadError);
-            const base64Data = await new Promise((resolve) => {
+        for (let i = 0; i < programPhotos.length; i++) {
+          const file = programPhotos[i];
+          try {
+            const driveUrl = await uploadFileToGoogleDrive(file);
+            photoUrls.push(driveUrl);
+          } catch (uploadErr) {
+            console.error('Google Drive upload fallback for:', file.name, uploadErr);
+            // Fallback: inline base64 if network disconnected
+            const base64Fallback = await new Promise((resolve) => {
               const r = new FileReader();
               r.onload = () => resolve(r.result);
               r.readAsDataURL(file);
             });
-            photoUrls.push(base64Data);
-          } else {
-            // Get public URL
-            const { data: { publicUrl } } = supabase.storage
-              .from('program-photos')
-              .getPublicUrl(filePath);
-            photoUrls.push(publicUrl);
+            photoUrls.push(base64Fallback);
           }
         }
 
-        // Insert photos into DB linked to report
+        // Insert media records into DB linked to report
         if (photoUrls.length > 0) {
           const photoRecords = photoUrls.map(url => ({
             report_id: newReport.id,
@@ -634,7 +664,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
         }
       }
 
-      setReportSuccessMsg('Report submitted successfully!');
+      setReportSuccessMsg('Report and media submitted successfully to Google Drive!');
       
       // Clear forms
       setProgramName('');
@@ -645,7 +675,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       
       // Reload reports
       fetchSubmittedReports();
-      setTimeout(() => setReportSuccessMsg(''), 3000);
+      setTimeout(() => setReportSuccessMsg(''), 4000);
     } catch (err) {
       alert('Error submitting report: ' + err.message);
     } finally {
@@ -1053,22 +1083,25 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   />
                 </div>
 
-                {/* Photo Selector */}
+                {/* Photo & Video Selector */}
                 <div className="form-group" style={{ marginTop: '16px' }}>
-                  <label>Upload Program Photos</label>
+                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Upload Program Media (Photos & Videos)</span>
+                    <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: '600' }}>⚡ Stored in 5TB Google Drive</span>
+                  </label>
                   <div 
                     className="drop-zone"
                     onClick={() => isSubmissionAllowed && document.getElementById('photo-file-input').click()}
                   >
-                    <span className="drop-zone-icon">📷</span>
-                    <span className="drop-zone-text">Tap to capture or upload photos</span>
-                    <span className="drop-zone-subtext">Supports PNG, JPG, JPEG</span>
+                    <span className="drop-zone-icon">📷 🎥</span>
+                    <span className="drop-zone-text">Tap to capture or upload photos & videos</span>
+                    <span className="drop-zone-subtext">Supports PNG, JPG, JPEG, MP4, MOV • Direct to Google Drive</span>
                   </div>
                   <input
                     type="file"
                     id="photo-file-input"
                     multiple
-                    accept="image/*"
+                    accept="image/*,video/*"
                     onChange={handlePhotoSelect}
                     style={{ display: 'none' }}
                     disabled={!isSubmissionAllowed || submittingReport}
@@ -1078,8 +1111,16 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   {photoPreviews.length > 0 && (
                     <div className="photo-upload-grid animate-fade">
                       {photoPreviews.map((preview, i) => (
-                        <div className="photo-preview" key={i}>
-                          <img src={preview} alt="preview" />
+                        <div className="photo-preview" key={i} style={{ position: 'relative' }}>
+                          {preview.isVideo ? (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', padding: '6px', textAlign: 'center' }}>
+                              <span style={{ fontSize: '24px' }}>🎥</span>
+                              <span style={{ fontSize: '10px', color: 'var(--dark-text)', fontWeight: '600', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview.name}</span>
+                              <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{preview.size}</span>
+                            </div>
+                          ) : (
+                            <img src={preview.url} alt="preview" />
+                          )}
                           <button
                             type="button"
                             className="photo-delete-btn"
@@ -1100,7 +1141,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   style={{ width: '100%', marginTop: '24px', height: '46px' }}
                   disabled={!isSubmissionAllowed || submittingReport}
                 >
-                  {submittingReport ? 'Uploading Report...' : '📤 Submit Program'}
+                  {submittingReport ? (typeof submittingReport === 'string' ? submittingReport : 'Uploading Media to Google Drive...') : '📤 Submit Program Report'}
                 </button>
               </form>
             </div>
@@ -1123,17 +1164,46 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                       <p style={{ fontSize: '13px', color: 'var(--text-main)', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
                         {rep.description}
                       </p>
-                      {/* Photos row */}
+                      {/* Media row */}
                       {rep.program_photos && rep.program_photos.length > 0 && (
-                        <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginTop: '8px', paddingBottom: '4px' }}>
-                          {rep.program_photos.map(ph => (
-                            <img 
-                              key={ph.id} 
-                              src={ph.photo_url} 
-                              alt="Program" 
-                              style={{ width: '60px', height: '60px', borderRadius: '4px', objectFit: 'cover', border: '1px solid var(--border)' }} 
-                            />
-                          ))}
+                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginTop: '10px', paddingBottom: '4px' }}>
+                          {rep.program_photos.map(ph => {
+                            const isDrive = ph.photo_url.includes('drive.google.com');
+                            const driveIdMatch = ph.photo_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || ph.photo_url.match(/id=([a-zA-Z0-9_-]+)/);
+                            const thumbUrl = isDrive && driveIdMatch ? `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w800` : ph.photo_url;
+                            return (
+                              <a
+                                key={ph.id}
+                                href={ph.photo_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '64px',
+                                  height: '64px',
+                                  borderRadius: '6px',
+                                  overflow: 'hidden',
+                                  border: '1px solid var(--border)',
+                                  textDecoration: 'none',
+                                  backgroundColor: '#f8fafc',
+                                  flexShrink: 0
+                                }}
+                                title="Click to view / download from Google Drive"
+                              >
+                                <img 
+                                  src={thumbUrl} 
+                                  alt="Program Media" 
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.parentNode.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;font-size:10px;font-weight:bold;color:#713F98;text-align:center;">🎥<br/>Drive</div>';
+                                  }}
+                                />
+                              </a>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
