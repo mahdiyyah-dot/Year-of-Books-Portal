@@ -1,6 +1,17 @@
-/* Print-Friendly Stylesheet for Program Reports */
+/* Print-Friendly Stylesheet for Program Reports & Leaderboard Notice Board */
+
+@page {
+  size: A4 portrait;
+  margin: 10mm 12mm;
+}
 
 @media print {
+  /* Enforce exact colors and background graphics */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   /* Hide all interactive and UI elements */
   .dashboard-header,
   .mobile-nav-bar,
@@ -10,6 +21,7 @@
   .floating-action-container,
   .search-container,
   .tab-filter-container,
+  .floating-toast-alert,
   .no-print {
     display: none !important;
   }
