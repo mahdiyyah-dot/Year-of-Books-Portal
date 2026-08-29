@@ -118,6 +118,15 @@
     color: #0044cc !important;
     text-decoration: underline !important;
   }
+
+  .print-leaderboard-card {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
 }
 
 /* Screen Preview Styles for the Printable Page (helps Admin view it nicely before printing) */
