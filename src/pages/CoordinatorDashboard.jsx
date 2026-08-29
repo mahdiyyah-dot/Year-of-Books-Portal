@@ -861,43 +861,43 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
     return (
       <div className="animate-fade" style={{ minHeight: '100vh', backgroundColor: '#FFFFFF' }}>
         {/* Navigation Bar for Print Mode (Hidden in Print) */}
-        <div className="no-print" style={{ backgroundColor: 'var(--primary)', color: 'white', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+        <div className="print-preview-navbar no-print">
           <div>
             <strong>Notice Board Print Preview:</strong> {profile?.name} • {leaderboardClass === 'ALL' ? 'School-wide' : `Class ${leaderboardClass}`} ({leaderboardMode === 'monthly' ? formatMonthLabel(activeMonth) : 'Cumulative'})
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button className="btn btn-pink" onClick={() => window.print()} style={{ padding: '8px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div className="print-preview-nav-actions">
+            <button className="btn btn-pink" onClick={() => window.print()} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               🖨️ Print Notice Board (A4)
             </button>
-            <button className="btn btn-secondary" onClick={() => setPrintingLeaderboard(false)} style={{ padding: '8px 16px', fontSize: '13px', backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
+            <button className="btn btn-secondary" onClick={() => setPrintingLeaderboard(false)} style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: 'white' }}>
               Back to Dashboard
             </button>
           </div>
         </div>
 
         {/* Printable Notice Board Card Container */}
-        <div className="print-page-preview print-leaderboard-card animate-slide" style={{ maxWidth: '820px', margin: '20px auto', padding: '36px', backgroundColor: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px' }}>
+        <div className="print-page-preview print-leaderboard-card animate-slide">
           
           {/* Header Row with Title on Left and Logo on Right Top */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #713F98', paddingBottom: '16px', marginBottom: '24px' }}>
+          <div className="print-notice-header">
             <div>
-              <div style={{ fontSize: '12px', fontWeight: '800', letterSpacing: '1.5px', color: '#713F98', marginBottom: '2px' }}>
+              <div style={{ fontSize: '11px', fontWeight: '800', letterSpacing: '1.5px', color: '#713F98', marginBottom: '2px' }}>
                 MAHDIYYAH YEAR OF BOOKS
               </div>
-              <h1 style={{ margin: '0 0 4px 0', fontSize: '26px', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.5px' }}>
+              <h1 className="print-notice-title" style={{ margin: '0 0 4px 0', fontWeight: '900', color: '#0f172a', letterSpacing: '-0.5px' }}>
                 🏆 MY PULSE LEADERBOARD
               </h1>
-              <div style={{ fontSize: '14px', fontWeight: '700', color: '#D01F82', marginBottom: '4px' }}>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: '#D01F82', marginBottom: '4px' }}>
                 {leaderboardClass === 'ALL' ? 'Study Centre Top Readers' : `Class ${leaderboardClass} Star Readers`}
               </div>
-              <div style={{ fontSize: '12px', color: '#475569' }}>
+              <div style={{ fontSize: '11px', color: '#475569' }}>
                 <strong>{profile?.name}</strong> ({profile?.code}) • <span>{leaderboardMode === 'monthly' ? formatMonthLabel(activeMonth) : 'Cumulative Academic Score'}</span>
               </div>
             </div>
             <img 
               src="/logo.jpg" 
               alt="Mahdiyyah Logo" 
-              style={{ width: '85px', height: 'auto', borderRadius: '8px', objectFit: 'contain' }} 
+              className="print-notice-logo"
             />
           </div>
 
@@ -908,7 +908,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
           ) : (
             <div>
               {/* Highlight 3 Top Positions */}
-              <div style={{ display: 'grid', gridTemplateColumns: top3.length === 1 ? '1fr' : (top3.length === 2 ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)'), gap: '14px', marginBottom: '24px' }}>
+              <div className="print-notice-top3-grid">
                 {top3.map((st, i) => {
                   const rankNumber = i + 1;
                   const medalBg = rankNumber === 1 ? '#FEF9C3' : (rankNumber === 2 ? '#F1F5F9' : '#FFEDD5');
@@ -918,6 +918,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   return (
                     <div 
                       key={st.id} 
+                      className="print-top3-card"
                       style={{ 
                         border: `2px solid ${medalBorder}`, 
                         backgroundColor: medalBg, 
@@ -927,17 +928,19 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                         pageBreakInside: 'avoid'
                       }}
                     >
-                      <div style={{ display: 'inline-block', fontSize: '12px', fontWeight: '800', color: medalBorder, background: 'rgba(255,255,255,0.8)', padding: '3px 10px', borderRadius: '12px', marginBottom: '8px' }}>
+                      <div className="print-top3-badge" style={{ display: 'inline-block', fontSize: '12px', fontWeight: '800', color: medalBorder, background: 'rgba(255,255,255,0.85)', padding: '3px 10px', borderRadius: '12px', marginBottom: '8px' }}>
                         {medalEmoji}
                       </div>
-                      <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: '800', color: '#0f172a' }}>
-                        {st.name}
-                      </h3>
-                      <div style={{ fontSize: '12px', color: '#475569', marginBottom: '8px' }}>
-                        Class {st.class} • Reg: {st.register_number}
+                      <div className="print-top3-info">
+                        <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: '800', color: '#0f172a' }}>
+                          {st.name}
+                        </h3>
+                        <div style={{ fontSize: '11px', color: '#475569', marginBottom: '4px' }}>
+                          Class {st.class} • Reg: {st.register_number}
+                        </div>
                       </div>
-                      <div style={{ fontSize: '16px', fontWeight: '900', color: '#713F98' }}>
-                        {st.score} <span style={{ fontSize: '11px', fontWeight: 'normal' }}>Points</span>
+                      <div className="print-top3-score" style={{ fontSize: '16px', fontWeight: '900', color: '#713F98' }}>
+                        {st.score} <span style={{ fontSize: '11px', fontWeight: 'normal' }}>pts</span>
                       </div>
                     </div>
                   );
@@ -950,34 +953,36 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   <div style={{ fontSize: '13px', fontWeight: '700', color: '#334155', marginBottom: '8px', borderBottom: '1px solid #cbd5e1', paddingBottom: '4px' }}>
                     Outstanding Performers (Ranks 4 – {top3.length + rest.length})
                   </div>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                    <thead>
-                      <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
-                        <th style={{ padding: '8px 10px', width: '50px' }}>Rank</th>
-                        <th style={{ padding: '8px 10px' }}>Student Name</th>
-                        <th style={{ padding: '8px 10px' }}>Class</th>
-                        <th style={{ padding: '8px 10px' }}>Reg No.</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'right' }}>Points</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rest.map((st, rIdx) => (
-                        <tr key={st.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: rIdx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
-                          <td style={{ padding: '8px 10px', fontWeight: 'bold', color: '#713F98' }}>#{rIdx + 4}</td>
-                          <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a' }}>{st.name}</td>
-                          <td style={{ padding: '8px 10px', color: '#475569' }}>Class {st.class}</td>
-                          <td style={{ padding: '8px 10px', color: '#64748b' }}>{st.register_number}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>{st.score} pts</td>
+                  <div className="print-table-container">
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '400px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '2px solid #cbd5e1', textAlign: 'left' }}>
+                          <th style={{ padding: '8px 10px', width: '50px' }}>Rank</th>
+                          <th style={{ padding: '8px 10px' }}>Student Name</th>
+                          <th style={{ padding: '8px 10px' }}>Class</th>
+                          <th style={{ padding: '8px 10px' }}>Reg No.</th>
+                          <th style={{ padding: '8px 10px', textAlign: 'right' }}>Points</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {rest.map((st, rIdx) => (
+                          <tr key={st.id} style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: rIdx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                            <td style={{ padding: '8px 10px', fontWeight: 'bold', color: '#713F98' }}>#{rIdx + 4}</td>
+                            <td style={{ padding: '8px 10px', fontWeight: '600', color: '#0f172a' }}>{st.name}</td>
+                            <td style={{ padding: '8px 10px', color: '#475569' }}>Class {st.class}</td>
+                            <td style={{ padding: '8px 10px', color: '#64748b' }}>{st.register_number}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 'bold', color: '#0f172a' }}>{st.score} pts</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
 
               {/* Congratulations Message on the Last */}
-              <div style={{ marginTop: '24px', padding: '14px 18px', backgroundColor: '#fdf2f8', border: '1px dashed #f472b6', borderRadius: '8px', textAlign: 'center', pageBreakInside: 'avoid' }}>
-                <div style={{ fontSize: '14px', fontWeight: '800', color: '#be185d', marginBottom: '2px' }}>
+              <div style={{ marginTop: '20px', padding: '12px 16px', backgroundColor: '#fdf2f8', border: '1px dashed #f472b6', borderRadius: '8px', textAlign: 'center', pageBreakInside: 'avoid' }}>
+                <div style={{ fontSize: '13px', fontWeight: '800', color: '#be185d', marginBottom: '2px' }}>
                   🎉 Hearty Congratulations to all our Star Readers!
                 </div>
                 <div style={{ fontSize: '11px', color: '#701a75', fontStyle: 'italic' }}>
@@ -986,7 +991,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
               </div>
 
               {/* Notice Board Signoff Footer */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '20px', paddingTop: '12px', borderTop: '1px solid #e2e8f0', fontSize: '10px', color: '#64748b' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '10px', borderTop: '1px solid #e2e8f0', fontSize: '9px', color: '#64748b' }}>
                 <div>Published by: <strong>Study Centre Coordinator</strong></div>
                 <div>Mahdiyyah Year of Books Portal • Notice Board Copy</div>
               </div>

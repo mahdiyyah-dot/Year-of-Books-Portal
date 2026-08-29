@@ -139,15 +139,165 @@
     max-width: 100% !important;
     page-break-inside: avoid;
   }
+
+  .print-notice-top3-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .print-top3-card {
+    display: block !important;
+    text-align: center !important;
+    padding: 14px !important;
+  }
+
+  .print-top3-badge {
+    margin-bottom: 8px !important;
+  }
+
+  .print-notice-logo {
+    width: 80px !important;
+  }
+
+  .print-notice-title {
+    font-size: 22pt !important;
+  }
 }
 
-/* Screen Preview Styles for the Printable Page (helps Admin view it nicely before printing) */
+/* Responsive Preview Styles for Screen Mode (Mobile & Desktop) */
+.print-preview-navbar {
+  background-color: var(--primary);
+  color: white;
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.print-preview-nav-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.print-notice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 3px solid #713F98;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+  gap: 14px;
+}
+
+.print-notice-logo {
+  width: 85px;
+  height: auto;
+  border-radius: 8px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.print-notice-top3-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.print-table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 24px;
+}
+
+@media screen and (max-width: 640px) {
+  .print-page-preview {
+    margin: 10px 8px !important;
+    padding: 18px 14px !important;
+    border-radius: 8px !important;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06) !important;
+  }
+
+  .print-preview-navbar {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .print-preview-nav-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .print-preview-nav-actions .btn {
+    width: 100%;
+    justify-content: center;
+    padding: 10px 6px !important;
+    font-size: 12px !important;
+  }
+
+  .print-notice-header {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+
+  .print-notice-title {
+    font-size: 18px !important;
+  }
+
+  .print-notice-logo {
+    width: 55px !important;
+  }
+
+  .print-notice-top3-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .print-top3-card {
+    padding: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    text-align: left !important;
+    gap: 12px !important;
+  }
+
+  .print-top3-badge {
+    margin-bottom: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .print-top3-info {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .print-top3-score {
+    text-align: right !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+/* Screen Preview Styles for the Printable Page */
 @media screen {
   .print-page-preview {
     background-color: #ffffff;
-    max-width: 800px;
+    max-width: 820px;
     margin: 20px auto;
-    padding: 40px;
+    padding: 36px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-md);
