@@ -41,7 +41,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
   // Common active states
   const [activeMonth, setActiveMonth] = useState('2026-08');
-  const [availableMonths, setAvailableMonths] = useState(['2026-08', '2026-09', '2026-10']);
+  const [availableMonths, setAvailableMonths] = useState(['2026-08', '2026-09']);
   const [windowOpen, setWindowOpen] = useState(true);
   const [activeClass, setActiveClass] = useState('M1');
   const [leaderboardClass, setLeaderboardClass] = useState('ALL'); // 'ALL', 'M1', 'M2', 'M3', 'M4', 'M5'
@@ -1025,9 +1025,10 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
             
             <div className="selector-row">
               <select value={activeMonth} onChange={(e) => setActiveMonth(e.target.value)}>
-                <option value="2026-08">August 2026</option>
-                <option value="2026-09">September 2026</option>
-                <option value="2026-10">October 2026</option>
+                {availableMonths.map(m => {
+                  const monthVal = typeof m === 'string' ? m : m.month;
+                  return <option key={monthVal} value={monthVal}>{formatMonthLabel(monthVal)}</option>;
+                })}
               </select>
             </div>
 
