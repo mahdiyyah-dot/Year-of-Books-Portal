@@ -207,14 +207,36 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       setPointsSuccessMsg('');
       
       // Get students
-      const { data: roster, error: rError } = await supabase
+      const { data: rawRoster, error: rError } = await supabase
         .from('students')
         .select('*')
         .eq('study_centre_code', profile.code)
-        .eq('class', activeClass)
-        .order('name', { ascending: true });
+        .eq('class', activeClass);
 
       if (rError) throw rError;
+
+      // Sort students strictly by the numeric value in their register number
+      const roster = rawRoster ? [...rawRoster].sort((a, b) => {
+        const regA = a.register_number || '';
+        const regB = b.register_number || '';
+        
+        // Extract pure digits from register number (e.g. CMS2611925 -> 2611925)
+        const numA = parseInt(regA.replace(/\D/g, ''), 10);
+        const numB = parseInt(regB.replace(/\D/g, ''), 10);
+
+        const hasNumA = !isNaN(numA);
+        const hasNumB = !isNaN(numB);
+
+        if (hasNumA && hasNumB) {
+          if (numA !== numB) {
+            return numA - numB;
+          }
+          return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' });
+        }
+        if (hasNumA) return -1;
+        if (hasNumB) return 1;
+        return (a.name || '').localeCompare(b.name || '');
+      }) : [];
 
       if (roster && roster.length > 0) {
         const studentIds = roster.map(s => s.id);
