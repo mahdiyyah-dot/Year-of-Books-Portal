@@ -1088,26 +1088,50 @@ function AdminDashboard({ user, onLogout }) {
                   
                   {/* Media attachments */}
                   {rep.program_photos && rep.program_photos.length > 0 && (
-                    <div className="print-photos-grid">
-                      {rep.program_photos.map(ph => {
-                        const isDrive = ph.photo_url.includes('drive.google.com');
-                        const driveIdMatch = ph.photo_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || ph.photo_url.match(/id=([a-zA-Z0-9_-]+)/);
-                        const thumbUrl = isDrive && driveIdMatch ? `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w800` : ph.photo_url;
-                        return (
-                          <div className="print-photo-wrapper" key={ph.id}>
-                            <a href={ph.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', height: '100%', textDecoration: 'none' }}>
-                              <img 
-                                src={thumbUrl} 
-                                alt="Activity attachment" 
-                                onError={(e) => {
-                                  e.target.style.display = 'none';
-                                  e.target.parentNode.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;background:#f1f5f9;border-radius:6px;color:#713F98;font-weight:bold;font-size:12px;text-align:center;padding:8px;">🎥<br/>Google Drive Video/Media<br/><span style=\"font-size:10px;color:#666;font-weight:normal;\">Click to open</span></div>';
-                                }}
-                              />
-                            </a>
-                          </div>
-                        );
-                      })}
+                    <div style={{ marginTop: '12px' }}>
+                      <div className="print-photos-grid">
+                        {rep.program_photos.map(ph => {
+                          const isDrive = ph.photo_url.includes('drive.google.com');
+                          const driveIdMatch = ph.photo_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || ph.photo_url.match(/id=([a-zA-Z0-9_-]+)/);
+                          const thumbUrl = isDrive && driveIdMatch ? `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w800` : ph.photo_url;
+                          return (
+                            <div className="print-photo-wrapper" key={ph.id}>
+                              <a href={ph.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', height: '100%', textDecoration: 'none' }} title="Click to open media in Google Drive">
+                                <img 
+                                  src={thumbUrl} 
+                                  alt="Activity attachment" 
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.parentNode.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;background:#f1f5f9;border-radius:6px;color:#713F98;font-weight:bold;font-size:12px;text-align:center;padding:8px;">🎥<br/>Google Drive Video/Media<br/><span style=\"font-size:10px;color:#666;font-weight:normal;\">Click to open</span></div>';
+                                  }}
+                                />
+                              </a>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Clickable Google Drive Links Section for PDF Export */}
+                      <div className="print-drive-links-box" style={{ marginTop: '10px', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: '9pt', fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}>
+                          🔗 Google Drive Attachments ({rep.program_photos.length}):
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          {rep.program_photos.map((ph, pIdx) => (
+                            <div key={ph.id} style={{ fontSize: '8.5pt', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ color: '#64748b' }}>Attachment {pIdx + 1}:</span>
+                              <a 
+                                href={ph.photo_url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                style={{ color: '#0284c7', textDecoration: 'underline', wordBreak: 'break-all', fontWeight: '500' }}
+                              >
+                                {ph.photo_url}
+                              </a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

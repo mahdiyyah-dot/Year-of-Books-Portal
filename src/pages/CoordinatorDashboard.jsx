@@ -80,6 +80,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   const [programPhotos, setProgramPhotos] = useState([]); // files array
   const [photoPreviews, setPhotoPreviews] = useState([]); // dataURLs array
   const [submittingReport, setSubmittingReport] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ isUploading: false, current: 0, total: 0, percent: 0, fileName: '', status: '' });
   const [submittedReportsList, setSubmittedReportsList] = useState([]);
   const [reportSuccessMsg, setReportSuccessMsg] = useState('');
 
@@ -612,6 +613,14 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
     try {
       setSubmittingReport(true);
       setReportSuccessMsg('');
+      setUploadProgress({
+        isUploading: true,
+        current: 0,
+        total: programPhotos.length,
+        percent: programPhotos.length > 0 ? 5 : 50,
+        fileName: '',
+        status: 'Creating program report record...'
+      });
 
       // 1. Create program report record
       const { data: newReport, error: rError } = await supabase
@@ -631,12 +640,32 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       // 2. Upload media (photos & videos) to 5TB Google Drive
       if (programPhotos.length > 0) {
         const photoUrls = [];
+        const total = programPhotos.length;
 
-        for (let i = 0; i < programPhotos.length; i++) {
+        for (let i = 0; i < total; i++) {
           const file = programPhotos[i];
+          const startPercent = Math.round(10 + (i / total) * 80);
+          setUploadProgress({
+            isUploading: true,
+            current: i + 1,
+            total: total,
+            percent: startPercent,
+            fileName: file.name,
+            status: `Uploading "${file.name}" to Google Drive (${i + 1}/${total})...`
+          });
+
           try {
             const driveUrl = await uploadFileToGoogleDrive(file);
             photoUrls.push(driveUrl);
+            const endPercent = Math.round(10 + ((i + 1) / total) * 80);
+            setUploadProgress({
+              isUploading: true,
+              current: i + 1,
+              total: total,
+              percent: endPercent,
+              fileName: file.name,
+              status: `Uploaded "${file.name}" successfully! (${i + 1}/${total})`
+            });
           } catch (uploadErr) {
             console.error('Google Drive upload fallback for:', file.name, uploadErr);
             // Fallback: inline base64 if network disconnected
@@ -651,6 +680,15 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
         // Insert media records into DB linked to report
         if (photoUrls.length > 0) {
+          setUploadProgress({
+            isUploading: true,
+            current: total,
+            total: total,
+            percent: 95,
+            fileName: '',
+            status: 'Linking attachments to report...'
+          });
+
           const photoRecords = photoUrls.map(url => ({
             report_id: newReport.id,
             photo_url: url
@@ -664,6 +702,15 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
         }
       }
 
+      setUploadProgress({
+        isUploading: true,
+        current: programPhotos.length,
+        total: programPhotos.length,
+        percent: 100,
+        fileName: '',
+        status: 'Completed successfully!'
+      });
+
       setReportSuccessMsg('Report and media submitted successfully to Google Drive!');
       
       // Clear forms
@@ -675,9 +722,13 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       
       // Reload reports
       fetchSubmittedReports();
-      setTimeout(() => setReportSuccessMsg(''), 4000);
+      setTimeout(() => {
+        setReportSuccessMsg('');
+        setUploadProgress({ isUploading: false, current: 0, total: 0, percent: 0, fileName: '', status: '' });
+      }, 4000);
     } catch (err) {
       alert('Error submitting report: ' + err.message);
+      setUploadProgress({ isUploading: false, current: 0, total: 0, percent: 0, fileName: '', status: '' });
     } finally {
       setSubmittingReport(false);
     }
@@ -1135,13 +1186,40 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                   )}
                 </div>
 
+                {/* Upload Progress Bar Card */}
+                {uploadProgress.isUploading && (
+                  <div style={{ marginTop: '16px', padding: '14px', background: 'rgba(113, 63, 152, 0.06)', border: '1px solid rgba(113, 63, 152, 0.2)', borderRadius: '8px' }} className="animate-fade">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '13px', fontWeight: '600', color: 'var(--primary)' }}>
+                      <span>{uploadProgress.status}</span>
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{uploadProgress.percent}%</span>
+                    </div>
+                    <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(0,0,0,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                      <div 
+                        style={{ 
+                          width: `${uploadProgress.percent}%`, 
+                          height: '100%', 
+                          backgroundColor: 'var(--primary)', 
+                          transition: 'width 0.3s ease',
+                          borderRadius: '4px'
+                        }} 
+                      />
+                    </div>
+                    {uploadProgress.total > 0 && (
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>File {uploadProgress.current} of {uploadProgress.total}</span>
+                        <span>Saving to 5TB Google Drive</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <button
                   type="submit"
                   className="btn btn-primary"
                   style={{ width: '100%', marginTop: '24px', height: '46px' }}
                   disabled={!isSubmissionAllowed || submittingReport}
                 >
-                  {submittingReport ? (typeof submittingReport === 'string' ? submittingReport : 'Uploading Media to Google Drive...') : '📤 Submit Program Report'}
+                  {submittingReport ? (uploadProgress.isUploading ? `Uploading Media (${uploadProgress.percent}%)...` : 'Uploading Report...') : '📤 Submit Program Report'}
                 </button>
               </form>
             </div>
