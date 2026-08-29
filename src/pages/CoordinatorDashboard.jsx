@@ -444,8 +444,8 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
       // Reset references
       setOriginalPoints({ ...pointsData });
-      setPointsSuccessMsg('Points saved successfully!');
-      setTimeout(() => setPointsSuccessMsg(''), 3000);
+      setPointsSuccessMsg(`Class ${activeClass} points saved successfully!`);
+      setTimeout(() => setPointsSuccessMsg(''), 4000);
     } catch (err) {
       alert('Error updating points: ' + err.message);
     } finally {
@@ -1637,6 +1637,37 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Floating Global Success Toast (Visible regardless of scroll position) */}
+      {pointsSuccessMsg && (
+        <div 
+          className="floating-toast-alert animate-slide"
+          style={{
+            position: 'fixed',
+            bottom: '80px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 999999,
+            backgroundColor: '#059669',
+            color: '#ffffff',
+            padding: '12px 24px',
+            borderRadius: '30px',
+            boxShadow: '0 12px 28px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(5, 150, 105, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontWeight: '600',
+            fontSize: '14px',
+            maxWidth: '92vw',
+            textAlign: 'center',
+            border: '2px solid rgba(255, 255, 255, 0.35)',
+            pointerEvents: 'none'
+          }}
+        >
+          <span style={{ fontSize: '15px', backgroundColor: 'rgba(255, 255, 255, 0.25)', borderRadius: '50%', width: '24px', height: '24px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>✓</span>
+          <span>{pointsSuccessMsg}</span>
         </div>
       )}
     </div>
