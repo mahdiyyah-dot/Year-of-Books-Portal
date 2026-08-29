@@ -997,6 +997,14 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
     );
   }
 
+  // Detect modified scores state to show floating save button
+  const hasModifiedScores = students.some(s => pointsData[s.id] !== originalPoints[s.id]);
+
+  // Month specific lock verification in component scope
+  const selectedMonthObj = availableMonths.find(m => (typeof m === 'string' ? m : m.month) === activeMonth);
+  const isSelectedMonthLocked = selectedMonthObj && typeof selectedMonthObj === 'object' && selectedMonthObj.is_locked;
+  const isSubmissionAllowed = windowOpen && !isSelectedMonthLocked;
+
   return (
     <div className="dashboard-root animate-fade">
       {/* Dashboard Top Header Bar */}
