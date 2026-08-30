@@ -815,49 +815,100 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   if (setupMode) {
     return (
       <div className="login-root animate-fade">
-        <div className="login-card">
+        <div className="login-card animate-slide">
+          {/* Brand Header */}
           <div className="login-logo-section">
-            <h1 className="login-brand-name">PROFILE SETUP</h1>
-            <p className="login-brand-tagline">Please verify your coordinator details</p>
+            <img 
+              src="/logo.jpg" 
+              alt="Mahdiyyah Year of Books" 
+              className="login-brand-img" 
+            />
+            <div className="login-tracker-badge">MY PULSE TRACKER</div>
+            <h2 style={{ fontSize: '20px', fontWeight: '800', color: 'var(--dark-text)', margin: '4px 0 2px 0' }}>
+              Coordinator Profile Setup
+            </h2>
+            <p className="login-brand-tagline">
+              Welcome! Please confirm your study centre and complete your coordinator contact details.
+            </p>
           </div>
+
+          {/* Verified Study Centre Info Card */}
+          <div style={{ backgroundColor: '#F6F3FA', border: '1px solid #E6DDF2', borderRadius: '12px', padding: '14px 16px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <span style={{ fontSize: '11px', fontWeight: '800', color: 'var(--primary)', letterSpacing: '0.5px' }}>
+                🏛️ ASSIGNED STUDY CENTRE
+              </span>
+              <span style={{ backgroundColor: 'var(--primary)', color: '#ffffff', fontSize: '11px', fontWeight: '800', padding: '3px 8px', borderRadius: '6px' }}>
+                {profile?.code || 'CENTRE'}
+              </span>
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#1e1b2e', lineHeight: '1.3' }}>
+              {profile?.name || 'Study Centre'}
+            </div>
+            {profile?.place && (
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                📍 {profile.place}{profile?.district ? `, ${profile.district}` : ''}
+              </div>
+            )}
+          </div>
+
+          {/* Coordinator Details Form */}
           <form onSubmit={handleProfileSetup}>
             <div className="form-group">
-              <label>Study Centre Code</label>
-              <input type="text" value={profile?.code || ''} disabled style={{ backgroundColor: '#F0F0F0', color: '#666' }} />
-            </div>
-            <div className="form-group" style={{ marginTop: '12px' }}>
-              <label>Study Centre Name</label>
-              <input type="text" value={profile?.name || ''} disabled style={{ backgroundColor: '#F0F0F0', color: '#666' }} />
-            </div>
-            <div className="form-group" style={{ marginTop: '12px' }}>
-              <label>Coordinator Full Name</label>
+              <label htmlFor="coordinator-name" style={{ fontSize: '12px', fontWeight: '700', color: 'var(--dark-text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>👤 Coordinator Full Name</span>
+              </label>
               <input
+                id="coordinator-name"
                 type="text"
-                placeholder="e.g. Muhammed Rafi"
+                placeholder="e.g. Fathima Zahra"
                 value={coordName}
                 onChange={(e) => setCoordName(e.target.value)}
+                disabled={savingProfile}
                 required
+                style={{ marginTop: '6px' }}
               />
             </div>
-            <div className="form-group" style={{ marginTop: '12px' }}>
-              <label>Coordinator Phone Number</label>
+
+            <div className="form-group" style={{ marginTop: '16px' }}>
+              <label htmlFor="coordinator-phone" style={{ fontSize: '12px', fontWeight: '700', color: 'var(--dark-text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>📱 Coordinator Phone / WhatsApp</span>
+              </label>
               <input
+                id="coordinator-phone"
                 type="tel"
                 placeholder="e.g. +91 9876543210"
                 value={coordPhone}
                 onChange={(e) => setCoordPhone(e.target.value)}
+                disabled={savingProfile}
                 required
+                style={{ marginTop: '6px' }}
               />
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                Used by central admin for program coordination & notifications.
+              </span>
             </div>
+
             <button
               type="submit"
               className="btn btn-primary"
-              style={{ width: '100%', marginTop: '24px', height: '48px' }}
+              style={{ width: '100%', marginTop: '24px', height: '48px', fontSize: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
               disabled={savingProfile}
             >
-              {savingProfile ? 'Saving Details...' : 'Complete Registration'}
+              {savingProfile ? 'Saving Details...' : '🚀 Complete Setup & Enter Dashboard'}
             </button>
           </form>
+
+          {/* Secondary Logout Option */}
+          <div style={{ textAlign: 'center', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+            <button 
+              type="button"
+              onClick={onLogout} 
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              Sign out / Switch account
+            </button>
+          </div>
         </div>
       </div>
     );
