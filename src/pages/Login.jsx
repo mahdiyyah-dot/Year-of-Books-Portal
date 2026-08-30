@@ -20,7 +20,14 @@ function Login() {
       setError('');
       await loginWithUsername(username, password);
     } catch (err) {
-      setError(err.message || 'Incorrect username or password. Please try again.');
+      const msg = err?.message || '';
+      if (msg.toLowerCase().includes('failed to fetch') || msg.toLowerCase().includes('network')) {
+        setError('Unable to connect to the database server. Please check your internet connection or disable Brave Shields / ad blockers.');
+      } else if (msg.toLowerCase().includes('invalid login credentials')) {
+        setError('Invalid username or password. Please verify your credentials.');
+      } else {
+        setError(msg || 'Incorrect username or password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
