@@ -62,6 +62,11 @@ function AdminDashboard({ user, onLogout }) {
   const [filterPointStatus, setFilterPointStatus] = useState('all'); // all, completed, in_progress, pending
   const [filterReportStatus, setFilterReportStatus] = useState('all'); // all, submitted, pending
 
+  // Coordinators Directory states
+  const [coordSearch, setCoordSearch] = useState('');
+  const [coordDistrict, setCoordDistrict] = useState('');
+  const [coordStatus, setCoordStatus] = useState('all'); // all, registered, pending
+
   // State Level Leaderboards states
   const [leaderboardTab, setLeaderboardTab] = useState('centres'); // 'centres', 'students', 'classes'
   const [leaderboardPeriod, setLeaderboardPeriod] = useState('monthly'); // 'monthly', 'cumulative'
@@ -826,6 +831,50 @@ function AdminDashboard({ user, onLogout }) {
     }
   };
 
+  // Distinct districts for coordinators directory filter
+  const coordinatorDistricts = Array.from(new Set(studyCentres.map(s => s.district).filter(Boolean))).sort();
+
+  // Filtered coordinators list
+  const filteredCoordinatorsList = studyCentres.filter(st => {
+    if (coordSearch.trim()) {
+      const q = coordSearch.toLowerCase();
+      const matchCode = st.code?.toLowerCase().includes(q);
+      const matchName = st.name?.toLowerCase().includes(q);
+      const matchPlace = st.place?.toLowerCase().includes(q);
+      const matchCoord = st.coordinator_name?.toLowerCase().includes(q);
+      const matchPhone = st.coordinator_phone?.toLowerCase().includes(q);
+      if (!matchCode && !matchName && !matchPlace && !matchCoord && !matchPhone) return false;
+    }
+    if (coordDistrict && st.district !== coordDistrict) return false;
+    if (coordStatus === 'registered' && !st.coordinator_name) return false;
+    if (coordStatus === 'pending' && st.coordinator_name) return false;
+    return true;
+  });
+
+  // Export Coordinators list to Excel
+  const exportCoordinatorsExcel = () => {
+    if (filteredCoordinatorsList.length === 0) {
+      alert('No study centre records found to export.');
+      return;
+    }
+
+    const exportRows = filteredCoordinatorsList.map(st => ({
+      'Centre Code': st.code,
+      'Centre Name': st.name,
+      'Place': st.place,
+      'District': st.district,
+      'Username': st.username,
+      'Login / Setup Status': st.coordinator_name ? 'Registered' : 'Pending First Login',
+      'Coordinator Name': st.coordinator_name || 'Not Set Up',
+      'Coordinator Phone': st.coordinator_phone || 'Not Set Up'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Coordinators');
+    XLSX.writeFile(workbook, `Coordinators_Directory_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   // State-wide Leaderboards calculation
   const fetchStateLeaderboards = async () => {
     try {
@@ -1187,6 +1236,233 @@ function AdminDashboard({ user, onLogout }) {
             </div>
           </div>
         </div>
+
+        {/* Top Desktop Navigation Tabs Bar */}
+        <div className="tab-filter-container no-print" style={{ marginBottom: '20px', display: 'flex', gap: '8px', flexWrap: 'wrap', backgroundColor: 'var(--bg-card)', padding: '8px', borderRadius: '12px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' }}>
+          <button
+            className={`tab-filter-btn ${activeTab === 'status' ? 'tab-filter-btn-active' : ''}`}
+            onClick={() => setActiveTab('status')}
+            style={{ padding: '9px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>📊</span> Status Board
+          </button>
+
+          <button
+            className={`tab-filter-btn ${activeTab === 'coordinators' ? 'tab-filter-btn-active' : ''}`}
+            onClick={() => setActiveTab('coordinators')}
+            style={{ padding: '9px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>👥</span> Coordinators Directory
+          </button>
+
+          <button
+            className={`tab-filter-btn ${activeTab === 'override' ? 'tab-filter-btn-active' : ''}`}
+            onClick={() => setActiveTab('override')}
+            style={{ padding: '9px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>⚙️</span> Access Controls
+          </button>
+
+          <button
+            className={`tab-filter-btn ${activeTab === 'upload' ? 'tab-filter-btn-active' : ''}`}
+            onClick={() => setActiveTab('upload')}
+            style={{ padding: '9px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>📥</span> Import Excel
+          </button>
+
+          <button
+            className={`tab-filter-btn ${activeTab === 'leaderboard' ? 'tab-filter-btn-active' : ''}`}
+            onClick={() => setActiveTab('leaderboard')}
+            style={{ padding: '9px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>🏆</span> State Rankings
+          </button>
+
+          <button
+            className={`tab-filter-btn ${activeTab === 'reports' ? 'tab-filter-btn-active' : ''}`}
+            onClick={() => setActiveTab('reports')}
+            style={{ padding: '9px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>🖨️</span> Reports Suite
+          </button>
+        </div>
+
+        {/* ==================================================== */}
+        {/* TAB: COORDINATORS DIRECTORY & ONBOARDING TRACKER */}
+        {/* ==================================================== */}
+        {activeTab === 'coordinators' && (
+          <div className="animate-fade">
+            {/* KPI Cards */}
+            {(() => {
+              const total = studyCentres.length;
+              const registeredCount = studyCentres.filter(s => !!s.coordinator_name).length;
+              const pendingCount = total - registeredCount;
+              const percent = total > 0 ? Math.round((registeredCount / total) * 100) : 0;
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+                  <div className="card" style={{ marginBottom: 0, padding: '16px', borderLeft: '4px solid var(--primary)' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Study Centres</div>
+                    <div style={{ fontSize: '26px', fontWeight: '800', color: 'var(--primary)', marginTop: '4px' }}>{total}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Registered in portal</div>
+                  </div>
+
+                  <div className="card" style={{ marginBottom: 0, padding: '16px', borderLeft: '4px solid #10B981' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#10B981', textTransform: 'uppercase' }}>🟢 Logged In & Registered</div>
+                    <div style={{ fontSize: '26px', fontWeight: '800', color: '#10B981', marginTop: '4px' }}>{registeredCount}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{percent}% Onboarding Rate</div>
+                  </div>
+
+                  <div className="card" style={{ marginBottom: 0, padding: '16px', borderLeft: '4px solid #F59E0B' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#F59E0B', textTransform: 'uppercase' }}>⏳ Pending First Login</div>
+                    <div style={{ fontSize: '26px', fontWeight: '800', color: '#F59E0B', marginTop: '4px' }}>{pendingCount}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Awaiting initial coordinator setup</div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Main Coordinators Directory Card */}
+            <div className="card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+                <div>
+                  <h3 className="card-title" style={{ margin: 0 }}>👥 Coordinators Directory & Login Tracker</h3>
+                  <div className="card-desc" style={{ marginTop: '4px' }}>
+                    Track coordinator profile setups, verify phone contacts, and message coordinators who haven't logged in yet.
+                  </div>
+                </div>
+                <button
+                  className="btn btn-secondary animate-slide"
+                  onClick={exportCoordinatorsExcel}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', fontSize: '13px' }}
+                >
+                  📥 Export Directory (.xlsx)
+                </button>
+              </div>
+
+              {/* Filters row */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search college, code, coordinator, phone..."
+                  value={coordSearch}
+                  onChange={(e) => setCoordSearch(e.target.value)}
+                  style={{ flex: 2, minWidth: '220px', padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px' }}
+                />
+
+                <select
+                  value={coordStatus}
+                  onChange={(e) => setCoordStatus(e.target.value)}
+                  style={{ flex: 1, minWidth: '160px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px' }}
+                >
+                  <option value="all">All Onboarding Statuses</option>
+                  <option value="registered">🟢 Logged In / Registered</option>
+                  <option value="pending">⏳ Pending First Login</option>
+                </select>
+
+                <select
+                  value={coordDistrict}
+                  onChange={(e) => setCoordDistrict(e.target.value)}
+                  style={{ flex: 1, minWidth: '150px', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px' }}
+                >
+                  <option value="">All Districts</option>
+                  {coordinatorDistricts.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Table of Coordinators */}
+              {filteredCoordinatorsList.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)', fontSize: '14px' }}>
+                  No study centres match your filter criteria.
+                </div>
+              ) : (
+                <div style={{ width: '100%', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg-main)', borderBottom: '2px solid var(--border)', textAlign: 'left' }}>
+                        <th style={{ padding: '12px 14px', width: '100px' }}>Code</th>
+                        <th style={{ padding: '12px 14px' }}>Study Centre</th>
+                        <th style={{ padding: '12px 14px', width: '130px' }}>District</th>
+                        <th style={{ padding: '12px 14px', width: '140px' }}>Login Status</th>
+                        <th style={{ padding: '12px 14px' }}>Coordinator Name</th>
+                        <th style={{ padding: '12px 14px' }}>Phone / WhatsApp</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCoordinatorsList.map(st => {
+                        const isRegistered = !!st.coordinator_name;
+                        const cleanPhone = st.coordinator_phone?.replace(/\D/g, '');
+                        return (
+                          <tr key={st.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '12px 14px', fontWeight: '800', color: 'var(--primary)' }}>
+                              {st.code}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              <div style={{ fontWeight: '700', color: 'var(--dark-text)' }}>{st.name}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>📍 {st.place}</div>
+                            </td>
+                            <td style={{ padding: '12px 14px', color: 'var(--text-main)' }}>
+                              {st.district}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              {isRegistered ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#DCFCE7', color: '#15803D', fontSize: '11px', fontWeight: '700', padding: '3px 8px', borderRadius: '12px' }}>
+                                  ● Logged In
+                                </span>
+                              ) : (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#FEF3C7', color: '#B45309', fontSize: '11px', fontWeight: '700', padding: '3px 8px', borderRadius: '12px' }}>
+                                  ⏳ Pending
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              {st.coordinator_name ? (
+                                <span style={{ fontWeight: '600', color: 'var(--dark-text)' }}>
+                                  👤 {st.coordinator_name}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '12px' }}>
+                                  — Not submitted yet —
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ padding: '12px 14px' }}>
+                              {st.coordinator_phone ? (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontWeight: '600', color: 'var(--dark-text)' }}>
+                                    {st.coordinator_phone}
+                                  </span>
+                                  {cleanPhone && (
+                                    <a
+                                      href={`https://wa.me/${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#25D366', color: '#ffffff', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', textDecoration: 'none', fontWeight: 'bold' }}
+                                      title="Open WhatsApp chat with coordinator"
+                                    >
+                                      💬 Chat
+                                    </a>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '12px' }}>
+                                  — No phone —
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* ==================================================== */}
         {/* TAB 1: UPLOAD EXCEL DATA */}
@@ -1855,6 +2131,14 @@ function AdminDashboard({ user, onLogout }) {
         >
           <span className="nav-icon">📊</span>
           <span>Status Board</span>
+        </button>
+
+        <button 
+          className={`nav-item ${activeTab === 'coordinators' ? 'nav-item-active' : ''}`}
+          onClick={() => setActiveTab('coordinators')}
+        >
+          <span className="nav-icon">👥</span>
+          <span>Coordinators</span>
         </button>
 
         <button 
