@@ -13,11 +13,11 @@ function App() {
 
   // Monitor Supabase Auth changes
   useEffect(() => {
-    // Check active session on mount
+    // Check active session on initial mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) {
-        fetchRole(session.user);
+        fetchRole(session.user, true);
       } else {
         setLoading(false);
       }
@@ -25,14 +25,23 @@ function App() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        setSession(newSession);
-        if (newSession) {
-          fetchRole(newSession.user);
-        } else {
+        if (event === 'SIGNED_OUT' || !newSession) {
+          setSession(null);
           setRole(null);
           setProfileData(null);
           setLoading(false);
+          return;
         }
+
+        setSession(newSession);
+
+        // If user session already has role established, do not reload or show loading screen on background token refresh
+        setRole(currentRole => {
+          if (!currentRole) {
+            fetchRole(newSession.user, false);
+          }
+          return currentRole;
+        });
       }
     );
 
@@ -40,9 +49,9 @@ function App() {
   }, []);
 
   // Fetch the role details (Admin vs Coordinator)
-  const fetchRole = async (user) => {
+  const fetchRole = async (user, showLoader = false) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       const roleResult = await getUserRole(user);
       if (roleResult) {
         setRole(roleResult.role);
@@ -51,7 +60,7 @@ function App() {
     } catch (err) {
       console.error('Error determining session access role:', err);
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   };
 

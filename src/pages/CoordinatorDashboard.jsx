@@ -31,7 +31,22 @@ const getAvatarColor = (name) => {
 
 function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   // Navigation tabs: 'points', 'status', 'reports', 'leaderboard'
-  const [activeTab, setActiveTab] = useState('points');
+  const [activeTab, setActiveTabState] = useState(() => {
+    try {
+      return sessionStorage.getItem('yob_coord_active_tab') || 'points';
+    } catch {
+      return 'points';
+    }
+  });
+
+  const setActiveTab = (tab) => {
+    setActiveTabState(tab);
+    try {
+      sessionStorage.setItem('yob_coord_active_tab', tab);
+    } catch (e) {
+      console.warn('SessionStorage error:', e);
+    }
+  };
   
   // Profile Setup State
   const [setupMode, setSetupMode] = useState(!profile?.coordinator_name || !profile?.coordinator_phone);
@@ -73,10 +88,43 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   const [classStatus, setClassStatus] = useState({});
   const [loadingStatus, setLoadingStatus] = useState(false);
 
-  // Reports State
-  const [programName, setProgramName] = useState('');
-  const [programDate, setProgramDate] = useState('');
-  const [programDesc, setProgramDesc] = useState('');
+  // Reports State (persisted so Android memory cleanup or camera/file switching never loses typed draft)
+  const [programName, setProgramNameState] = useState(() => {
+    try { return sessionStorage.getItem('yob_draft_prog_name') || ''; } catch { return ''; }
+  });
+  const [programDate, setProgramDateState] = useState(() => {
+    try { return sessionStorage.getItem('yob_draft_prog_date') || ''; } catch { return ''; }
+  });
+  const [programDesc, setProgramDescState] = useState(() => {
+    try { return sessionStorage.getItem('yob_draft_prog_desc') || ''; } catch { return ''; }
+  });
+
+  const setProgramName = (val) => {
+    setProgramNameState(val);
+    try { sessionStorage.setItem('yob_draft_prog_name', val); } catch {}
+  };
+  const setProgramDate = (val) => {
+    setProgramDateState(val);
+    try { sessionStorage.setItem('yob_draft_prog_date', val); } catch {}
+  };
+  const setProgramDesc = (val) => {
+    setProgramDescState(val);
+    try { sessionStorage.setItem('yob_draft_prog_desc', val); } catch {}
+  };
+
+  const clearReportDraft = () => {
+    setProgramNameState('');
+    setProgramDateState('');
+    setProgramDescState('');
+    setProgramPhotos([]);
+    setPhotoPreviews([]);
+    try {
+      sessionStorage.removeItem('yob_draft_prog_name');
+      sessionStorage.removeItem('yob_draft_prog_date');
+      sessionStorage.removeItem('yob_draft_prog_desc');
+    } catch {}
+  };
+
   const [programPhotos, setProgramPhotos] = useState([]); // files array
   const [photoPreviews, setPhotoPreviews] = useState([]); // dataURLs array
   const [submittingReport, setSubmittingReport] = useState(false);
@@ -593,7 +641,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
     });
   };
 
-  // Media Selection (Photos & Videos) handler
+  // Media Selection (Photos, Videos & Scanned PDFs) handler
   const handlePhotoSelect = (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -603,12 +651,14 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
     // Generate previews
     files.forEach(file => {
       const isVideo = file.type.startsWith('video/');
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       const reader = new FileReader();
       reader.onloadend = () => {
         setPhotoPreviews(prev => [...prev, {
           url: reader.result,
           name: file.name,
           isVideo: isVideo,
+          isPdf: isPdf,
           size: (file.size / (1024 * 1024)).toFixed(1) + ' MB'
         }]);
       };
@@ -736,12 +786,8 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
       setReportSuccessMsg('Report and media submitted successfully to Google Drive!');
       
-      // Clear forms
-      setProgramName('');
-      setProgramDate('');
-      setProgramDesc('');
-      setProgramPhotos([]);
-      setPhotoPreviews([]);
+      // Clear forms and local session draft
+      clearReportDraft();
       
       // Reload reports
       fetchSubmittedReports();
@@ -1380,15 +1426,15 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                     className="drop-zone"
                     onClick={() => isSubmissionAllowed && document.getElementById('photo-file-input').click()}
                   >
-                    <span className="drop-zone-icon">📷 🎥</span>
-                    <span className="drop-zone-text">Tap to capture or upload photos & videos</span>
-                    <span className="drop-zone-subtext">Supports PNG, JPG, JPEG, MP4, MOV • Direct to Google Drive</span>
+                    <span className="drop-zone-icon">📷 🎥 📄</span>
+                    <span className="drop-zone-text">Tap to capture or upload photos, videos & scanned PDFs</span>
+                    <span className="drop-zone-subtext">Supports PNG, JPG, JPEG, MP4, MOV, PDF (Adobe Scan) • Direct to Google Drive</span>
                   </div>
                   <input
                     type="file"
                     id="photo-file-input"
                     multiple
-                    accept="image/*,video/*"
+                    accept="image/*,video/*,application/pdf"
                     onChange={handlePhotoSelect}
                     style={{ display: 'none' }}
                     disabled={!isSubmissionAllowed || submittingReport}
@@ -1404,6 +1450,12 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                               <span style={{ fontSize: '24px' }}>🎥</span>
                               <span style={{ fontSize: '10px', color: 'var(--dark-text)', fontWeight: '600', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview.name}</span>
                               <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{preview.size}</span>
+                            </div>
+                          ) : preview.isPdf ? (
+                            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#fef2f2', padding: '6px', textAlign: 'center' }}>
+                              <span style={{ fontSize: '24px' }}>📄</span>
+                              <span style={{ fontSize: '10px', color: '#991b1b', fontWeight: '700', maxWidth: '80px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview.name}</span>
+                              <span style={{ fontSize: '9px', color: '#b91c1c' }}>{preview.size} (PDF)</span>
                             </div>
                           ) : (
                             <img src={preview.url} alt="preview" />
