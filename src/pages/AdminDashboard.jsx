@@ -912,6 +912,16 @@ function AdminDashboard({ user, onLogout }) {
     return allRecords;
   };
 
+  // Excel cell character limit safety helper (Excel max cell limit is 32,767 characters)
+  const safeExcelVal = (val, maxLen = 32000) => {
+    if (val === null || val === undefined) return '';
+    const str = String(val);
+    if (str.startsWith('data:image/') || str.startsWith('data:video/') || str.startsWith('data:application/')) {
+      return '[Embedded Media Attachment]';
+    }
+    return str.length > maxLen ? str.substring(0, maxLen) + '... [Truncated]' : str;
+  };
+
   // Compile entire database records into structured sheets
   const compileDatabaseBackup = async () => {
     // 1. Fetch study centres
@@ -935,13 +945,13 @@ function AdminDashboard({ user, onLogout }) {
       const st = studentsMap[pt.student_id] || {};
       const sc = centresMap[st.study_centre_code] || {};
       return {
-        'Month': pt.month,
-        'Student Name': st.name || 'Unknown',
-        'Register Number': st.register_number || 'N/A',
-        'Class': st.class || 'N/A',
-        'Study Centre Code': st.study_centre_code || 'N/A',
-        'Study Centre Name': sc.name || 'N/A',
-        'District': sc.district || 'N/A',
+        'Month': safeExcelVal(pt.month),
+        'Student Name': safeExcelVal(st.name || 'Unknown'),
+        'Register Number': safeExcelVal(st.register_number || 'N/A'),
+        'Class': safeExcelVal(st.class || 'N/A'),
+        'Study Centre Code': safeExcelVal(st.study_centre_code || 'N/A'),
+        'Study Centre Name': safeExcelVal(sc.name || 'N/A'),
+        'District': safeExcelVal(sc.district || 'N/A'),
         'Points Awarded': parseFloat(pt.points) || 0,
         'Last Updated': pt.updated_at ? new Date(pt.updated_at).toLocaleString() : ''
       };
@@ -950,16 +960,23 @@ function AdminDashboard({ user, onLogout }) {
     // Build Sheet 2: Activity Reports (Joined with College & Photo links)
     const reportsRows = reports.map(rep => {
       const sc = centresMap[rep.study_centre_code] || {};
-      const photoLinks = rep.program_photos?.map(p => p.photo_url).join(' , ') || 'None';
+      const photoLinks = rep.program_photos?.map((p, idx) => {
+        const u = p.photo_url || '';
+        if (u.startsWith('data:')) {
+          return `[Embedded Attachment ${idx + 1}]`;
+        }
+        return u;
+      }).join(' , ') || 'None';
+
       return {
-        'Month': rep.month,
-        'Study Centre Code': rep.study_centre_code,
-        'Study Centre Name': sc.name || 'N/A',
-        'District': sc.district || 'N/A',
-        'Program / Activity Name': rep.name,
-        'Activity Date': rep.date,
-        'Description': rep.description,
-        'Media & Attachments': photoLinks,
+        'Month': safeExcelVal(rep.month),
+        'Study Centre Code': safeExcelVal(rep.study_centre_code),
+        'Study Centre Name': safeExcelVal(sc.name || 'N/A'),
+        'District': safeExcelVal(sc.district || 'N/A'),
+        'Program / Activity Name': safeExcelVal(rep.name),
+        'Activity Date': rep.date || '',
+        'Description': safeExcelVal(rep.description),
+        'Media & Attachments': safeExcelVal(photoLinks),
         'Submitted At': rep.created_at ? new Date(rep.created_at).toLocaleString() : ''
       };
     });
@@ -968,24 +985,24 @@ function AdminDashboard({ user, onLogout }) {
     const studentsRows = students.map(st => {
       const sc = centresMap[st.study_centre_code] || {};
       return {
-        'Register Number': st.register_number,
-        'Student Name': st.name,
-        'Class': st.class,
-        'Study Centre Code': st.study_centre_code,
-        'Study Centre Name': sc.name || 'N/A',
-        'District': sc.district || 'N/A'
+        'Register Number': safeExcelVal(st.register_number),
+        'Student Name': safeExcelVal(st.name),
+        'Class': safeExcelVal(st.class),
+        'Study Centre Code': safeExcelVal(st.study_centre_code),
+        'Study Centre Name': safeExcelVal(sc.name || 'N/A'),
+        'District': safeExcelVal(sc.district || 'N/A')
       };
     });
 
     // Build Sheet 4: Study Centres & Coordinators
     const centresRows = centres.map(c => ({
-      'Centre Code': c.code,
-      'Centre Name': c.name,
-      'Place': c.place,
-      'District': c.district,
-      'Username': c.username,
-      'Coordinator Name': c.coordinator_name || 'Not Set Up',
-      'Coordinator Phone': c.coordinator_phone || 'Not Set Up'
+      'Centre Code': safeExcelVal(c.code),
+      'Centre Name': safeExcelVal(c.name),
+      'Place': safeExcelVal(c.place),
+      'District': safeExcelVal(c.district),
+      'Username': safeExcelVal(c.username),
+      'Coordinator Name': safeExcelVal(c.coordinator_name || 'Not Set Up'),
+      'Coordinator Phone': safeExcelVal(c.coordinator_phone || 'Not Set Up')
     }));
 
     // Create multi-sheet workbook
