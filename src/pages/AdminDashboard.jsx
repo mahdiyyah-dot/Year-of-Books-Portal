@@ -67,6 +67,13 @@ function AdminDashboard({ user, onLogout }) {
   const [coordDistrict, setCoordDistrict] = useState('');
   const [coordStatus, setCoordStatus] = useState('all'); // all, registered, pending
 
+  // Backup Vault states
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupStatusMsg, setBackupStatusMsg] = useState({ text: '', type: '' });
+  const [lastBackupTime, setLastBackupTime] = useState(() => {
+    try { return localStorage.getItem('yob_last_backup_time') || ''; } catch { return ''; }
+  });
+
   // State Level Leaderboards states
   const [leaderboardTab, setLeaderboardTab] = useState('centres'); // 'centres', 'students', 'classes'
   const [leaderboardPeriod, setLeaderboardPeriod] = useState('monthly'); // 'monthly', 'cumulative'
@@ -215,6 +222,8 @@ function AdminDashboard({ user, onLogout }) {
     const month = document.getElementById('new-month-select')?.value;
     const year = document.getElementById('new-year-select')?.value;
     if (!month || !year) return;
+
+    const newMonthStr = `${year}-${month}`;
 
     const mVals = availableMonths.map(m => typeof m === 'string' ? m : m.month);
     if (mVals.includes(newMonthStr)) {
@@ -875,6 +884,211 @@ function AdminDashboard({ user, onLogout }) {
     XLSX.writeFile(workbook, `Coordinators_Directory_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  // Google Drive Webhook URL for Cloud Backups
+  const GOOGLE_DRIVE_WEBHOOK_URL = 'https://script.google.com/macros/s/AKfycbxtELY04jOSpT6wvg5uoPr-EZDA9YY13AOiSVPui5uQ_0HTxVe_hL7Fyg8n9dOd1OClKg/exec';
+
+  // Helper: Fetch all rows safely with pagination
+  const fetchAllTableRecords = async (tableName, selectFields = '*') => {
+    let allRecords = [];
+    let from = 0;
+    const step = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from(tableName)
+        .select(selectFields)
+        .range(from, from + step - 1);
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        allRecords = allRecords.concat(data);
+        from += step;
+        if (data.length < step) hasMore = false;
+      } else {
+        hasMore = false;
+      }
+    }
+    return allRecords;
+  };
+
+  // Compile entire database records into structured sheets
+  const compileDatabaseBackup = async () => {
+    // 1. Fetch study centres
+    const centres = await fetchAllTableRecords('study_centres');
+    const centresMap = {};
+    centres.forEach(c => { centresMap[c.code] = c; });
+
+    // 2. Fetch all students
+    const students = await fetchAllTableRecords('students');
+    const studentsMap = {};
+    students.forEach(s => { studentsMap[s.id] = s; });
+
+    // 3. Fetch all points
+    const points = await fetchAllTableRecords('points');
+
+    // 4. Fetch all program reports with attached media
+    const reports = await fetchAllTableRecords('program_reports', '*, program_photos(*)');
+
+    // Build Sheet 1: Student Points (Joined with Student & College info)
+    const pointsRows = points.map(pt => {
+      const st = studentsMap[pt.student_id] || {};
+      const sc = centresMap[st.study_centre_code] || {};
+      return {
+        'Month': pt.month,
+        'Student Name': st.name || 'Unknown',
+        'Register Number': st.register_number || 'N/A',
+        'Class': st.class || 'N/A',
+        'Study Centre Code': st.study_centre_code || 'N/A',
+        'Study Centre Name': sc.name || 'N/A',
+        'District': sc.district || 'N/A',
+        'Points Awarded': parseFloat(pt.points) || 0,
+        'Last Updated': pt.updated_at ? new Date(pt.updated_at).toLocaleString() : ''
+      };
+    });
+
+    // Build Sheet 2: Activity Reports (Joined with College & Photo links)
+    const reportsRows = reports.map(rep => {
+      const sc = centresMap[rep.study_centre_code] || {};
+      const photoLinks = rep.program_photos?.map(p => p.photo_url).join(' , ') || 'None';
+      return {
+        'Month': rep.month,
+        'Study Centre Code': rep.study_centre_code,
+        'Study Centre Name': sc.name || 'N/A',
+        'District': sc.district || 'N/A',
+        'Program / Activity Name': rep.name,
+        'Activity Date': rep.date,
+        'Description': rep.description,
+        'Media & Attachments': photoLinks,
+        'Submitted At': rep.created_at ? new Date(rep.created_at).toLocaleString() : ''
+      };
+    });
+
+    // Build Sheet 3: Students Roster
+    const studentsRows = students.map(st => {
+      const sc = centresMap[st.study_centre_code] || {};
+      return {
+        'Register Number': st.register_number,
+        'Student Name': st.name,
+        'Class': st.class,
+        'Study Centre Code': st.study_centre_code,
+        'Study Centre Name': sc.name || 'N/A',
+        'District': sc.district || 'N/A'
+      };
+    });
+
+    // Build Sheet 4: Study Centres & Coordinators
+    const centresRows = centres.map(c => ({
+      'Centre Code': c.code,
+      'Centre Name': c.name,
+      'Place': c.place,
+      'District': c.district,
+      'Username': c.username,
+      'Coordinator Name': c.coordinator_name || 'Not Set Up',
+      'Coordinator Phone': c.coordinator_phone || 'Not Set Up'
+    }));
+
+    // Create multi-sheet workbook
+    const workbook = XLSX.utils.book_new();
+
+    const wsPoints = XLSX.utils.json_to_sheet(pointsRows);
+    XLSX.utils.book_append_sheet(workbook, wsPoints, 'Student_Points');
+
+    const wsReports = XLSX.utils.json_to_sheet(reportsRows);
+    XLSX.utils.book_append_sheet(workbook, wsReports, 'Activity_Reports');
+
+    const wsStudents = XLSX.utils.json_to_sheet(studentsRows);
+    XLSX.utils.book_append_sheet(workbook, wsStudents, 'Students_Roster');
+
+    const wsCentres = XLSX.utils.json_to_sheet(centresRows);
+    XLSX.utils.book_append_sheet(workbook, wsCentres, 'Study_Centres');
+
+    return {
+      workbook,
+      counts: {
+        points: pointsRows.length,
+        reports: reportsRows.length,
+        students: studentsRows.length,
+        centres: centresRows.length
+      }
+    };
+  };
+
+  // Handler 1: Download Master Excel Backup Locally
+  const handleDownloadLocalBackup = async () => {
+    try {
+      setBackupLoading(true);
+      setBackupStatusMsg({ text: 'Reading database records safely...', type: 'info' });
+
+      const { workbook, counts } = await compileDatabaseBackup();
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `YOB_MASTER_BACKUP_${dateStr}.xlsx`;
+
+      XLSX.writeFile(workbook, filename);
+
+      const timeNow = new Date().toLocaleString();
+      setLastBackupTime(timeNow);
+      try { localStorage.setItem('yob_last_backup_time', timeNow); } catch {}
+
+      setBackupStatusMsg({
+        text: `✓ Master Excel Backup downloaded successfully! (${counts.points} points, ${counts.reports} reports, ${counts.students} students, ${counts.centres} colleges).`,
+        type: 'success'
+      });
+    } catch (err) {
+      console.error('Error generating backup:', err);
+      setBackupStatusMsg({ text: 'Backup failed: ' + err.message, type: 'error' });
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  // Handler 2: Upload Cloud Backup directly to 5TB Google Drive
+  const handleCloudBackupToDrive = async () => {
+    try {
+      setBackupLoading(true);
+      setBackupStatusMsg({ text: 'Generating master backup spreadsheet for Google Drive...', type: 'info' });
+
+      const { workbook, counts } = await compileDatabaseBackup();
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `YOB_DATABASE_BACKUP_${dateStr}.xlsx`;
+
+      // Export workbook to base64
+      const base64Data = XLSX.write(workbook, { bookType: 'xlsx', type: 'base64' });
+
+      setBackupStatusMsg({ text: 'Connecting to 5TB Google Drive and uploading...', type: 'info' });
+
+      const response = await fetch(GOOGLE_DRIVE_WEBHOOK_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          collegeCode: 'CENTRAL_ADMIN',
+          collegeName: 'Central Database Backup',
+          fileName: filename,
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          base64Data: base64Data
+        })
+      });
+
+      const resJson = await response.json();
+      if (resJson && resJson.success) {
+        const timeNow = new Date().toLocaleString();
+        setLastBackupTime(timeNow);
+        try { localStorage.setItem('yob_last_backup_time', timeNow); } catch {}
+
+        setBackupStatusMsg({
+          text: `✓ Successfully saved complete database backup to 5TB Google Drive! (${counts.points} points, ${counts.reports} reports archived).`,
+          type: 'success'
+        });
+      } else {
+        throw new Error(resJson?.error || 'Failed to upload backup to Google Drive');
+      }
+    } catch (err) {
+      console.error('Error saving backup to Google Drive:', err);
+      setBackupStatusMsg({ text: 'Google Drive backup failed: ' + err.message, type: 'error' });
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
   // State-wide Leaderboards calculation
   const fetchStateLeaderboards = async () => {
     try {
@@ -1286,7 +1500,137 @@ function AdminDashboard({ user, onLogout }) {
           >
             <span>🖨️</span> Reports Suite
           </button>
+
+          <button
+            className={`tab-filter-btn ${activeTab === 'backup' ? 'tab-filter-btn-active' : ''}`}
+            onClick={() => setActiveTab('backup')}
+            style={{ padding: '9px 18px', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span>💾</span> Backup Vault
+          </button>
         </div>
+
+        {/* ==================================================== */}
+        {/* TAB: SECURE DATA BACKUP VAULT */}
+        {/* ==================================================== */}
+        {activeTab === 'backup' && (
+          <div className="animate-fade">
+            {/* Header Card */}
+            <div className="card" style={{ borderLeft: '5px solid #059669', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                  <h3 className="card-title" style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                    <span>🛡️</span> Secure Data Backup Vault
+                  </h3>
+                  <div className="card-desc" style={{ marginTop: '4px' }}>
+                    Protect all portal records against any data loss. Generates full backups of points, activity reports, students, and colleges.
+                  </div>
+                </div>
+                {lastBackupTime && (
+                  <div style={{ fontSize: '11px', background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0', padding: '6px 12px', borderRadius: '20px', fontWeight: '600' }}>
+                    ✓ Last Backup: {lastBackupTime}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Live Data Summary to be backed up */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+              <div className="card" style={{ marginBottom: 0, padding: '16px', borderLeft: '4px solid var(--primary)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Student Roster</div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--primary)', marginTop: '4px' }}>{allStudentsCount}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Registered students across all classes</div>
+              </div>
+
+              <div className="card" style={{ marginBottom: 0, padding: '16px', borderLeft: '4px solid var(--secondary)' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--secondary)', textTransform: 'uppercase' }}>Study Centres</div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: 'var(--secondary)', marginTop: '4px' }}>{studyCentres.length}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Colleges & coordinator profiles</div>
+              </div>
+
+              <div className="card" style={{ marginBottom: 0, padding: '16px', borderLeft: '4px solid #059669' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#059669', textTransform: 'uppercase' }}>Registered Months</div>
+                <div style={{ fontSize: '24px', fontWeight: '800', color: '#059669', marginTop: '4px' }}>{availableMonths.length}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>Academic active periods</div>
+              </div>
+            </div>
+
+            {/* Backup Status Message Banner */}
+            {backupStatusMsg.text && (
+              <div className={`alert ${backupStatusMsg.type === 'success' ? 'alert-success' : 'alert-warning'} animate-fade`} style={{ marginBottom: '20px' }}>
+                <span className="alert-icon">{backupStatusMsg.type === 'success' ? '✓' : '⚠️'}</span>
+                <div>{backupStatusMsg.text}</div>
+              </div>
+            )}
+
+            {/* Action Cards Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+              {/* Option 1: Master Excel Download */}
+              <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px' }}>
+                <div>
+                  <div style={{ fontSize: '32px', marginBottom: '12px' }}>📥</div>
+                  <h4 style={{ fontSize: '16px', fontWeight: '800', color: 'var(--dark-text)', margin: '0 0 8px 0' }}>
+                    1-Click Master Excel Backup (.xlsx)
+                  </h4>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.5', margin: 0 }}>
+                    Download a comprehensive multi-sheet Excel spreadsheet containing 4 dedicated tabs: <strong>Student_Points</strong>, <strong>Activity_Reports</strong> (with Drive photo links), <strong>Students_Roster</strong>, and <strong>Study_Centres</strong>.
+                  </p>
+                </div>
+                <div style={{ marginTop: '20px' }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleDownloadLocalBackup}
+                    disabled={backupLoading}
+                    style={{ width: '100%', height: '46px', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    {backupLoading ? 'Compiling Backup...' : '📥 Download Master Excel Backup'}
+                  </button>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center', marginTop: '8px' }}>
+                    100% Read-only • Safe to run anytime
+                  </div>
+                </div>
+              </div>
+
+              {/* Option 2: 5TB Google Drive Cloud Backup */}
+              <div className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px', border: '1px solid #c7d2fe', backgroundColor: '#f8faff' }}>
+                <div>
+                  <div style={{ fontSize: '32px', marginBottom: '12px' }}>☁️</div>
+                  <h4 style={{ fontSize: '16px', fontWeight: '800', color: '#1e3a8a', margin: '0 0 8px 0' }}>
+                    Cloud Backup to 5TB Google Drive
+                  </h4>
+                  <p style={{ fontSize: '12px', color: '#475569', lineHeight: '1.5', margin: 0 }}>
+                    Directly transfers and archives a timestamped copy of the master database spreadsheet into your central <strong>5TB Google Drive</strong> storage for permanent safekeeping.
+                  </p>
+                </div>
+                <div style={{ marginTop: '20px' }}>
+                  <button
+                    className="btn"
+                    onClick={handleCloudBackupToDrive}
+                    disabled={backupLoading}
+                    style={{ width: '100%', height: '46px', fontSize: '13px', fontWeight: '700', backgroundColor: '#0284c7', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    {backupLoading ? 'Uploading to Drive...' : '☁️ Save Backup to Google Drive'}
+                  </button>
+                  <div style={{ fontSize: '11px', color: '#64748b', textAlign: 'center', marginTop: '8px' }}>
+                    Instant cloud archive in Google Drive
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Safety & Restoration Information */}
+            <div className="card" style={{ backgroundColor: 'var(--bg-main)', border: '1px solid var(--border)', fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.6' }}>
+              <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '4px' }}>
+                🛡️ Backup Integrity Guarantee:
+              </div>
+              <ul style={{ paddingLeft: '20px' }}>
+                <li>This process only executes <strong>SELECT (read) queries</strong> to pull data and will never modify, overwrite, or delete any live records.</li>
+                <li>Your photos and video reports are already permanently stored in your <strong>5TB Google Drive</strong>; this backup saves all the metadata, descriptions, and clickable links to those files.</li>
+                <li>We recommend downloading a Master Excel Backup at the conclusion of every monthly submission window (after the 5th of each month).</li>
+              </ul>
+            </div>
+          </div>
+        )}
 
         {/* ==================================================== */}
         {/* TAB: COORDINATORS DIRECTORY & ONBOARDING TRACKER */}
@@ -2171,6 +2515,14 @@ function AdminDashboard({ user, onLogout }) {
         >
           <span className="nav-icon">🖨️</span>
           <span>Reports Suite</span>
+        </button>
+
+        <button 
+          className={`nav-item ${activeTab === 'backup' ? 'nav-item-active' : ''}`}
+          onClick={() => setActiveTab('backup')}
+        >
+          <span className="nav-icon">💾</span>
+          <span>Backup</span>
         </button>
       </nav>
     </div>
