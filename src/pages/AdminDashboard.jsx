@@ -744,12 +744,30 @@ function AdminDashboard({ user, onLogout }) {
         }
       });
 
-      // 2. Get point records count for the active month
-      const { data: scoreRecords, error: sErr } = await supabase
-        .from('points')
-        .select('student_id')
-        .eq('month', matrixMonth);
-      if (sErr) throw sErr;
+      // 2. Get point records count for the active month using paginated loop to bypass 1000-row cap
+      let scoreRecords = [];
+      let pStart = 0;
+      const pLimit = 1000;
+      let pHasMore = true;
+
+      while (pHasMore) {
+        const { data: pBatch, error: sErr } = await supabase
+          .from('points')
+          .select('student_id')
+          .eq('month', matrixMonth)
+          .order('id')
+          .range(pStart, pStart + pLimit - 1);
+
+        if (sErr) throw sErr;
+
+        if (pBatch && pBatch.length > 0) {
+          scoreRecords = scoreRecords.concat(pBatch);
+          pStart += pLimit;
+          if (pBatch.length < pLimit) pHasMore = false;
+        } else {
+          pHasMore = false;
+        }
+      }
 
       // Group points uploads by centre code and class
       const schoolUploadedCount = {}; // code -> { M1: 0, M2: 0, ... }
@@ -1122,6 +1140,7 @@ function AdminDashboard({ user, onLogout }) {
         const { data, error: rErr } = await supabase
           .from('students')
           .select('id, name, class, study_centre_code, register_number, study_centres(name)')
+          .order('id')
           .range(start, start + limit - 1);
         
         if (rErr) throw rErr;
@@ -1140,16 +1159,34 @@ function AdminDashboard({ user, onLogout }) {
       const studentIds = roster?.map(s => s.id) || [];
       if (studentIds.length === 0) return;
 
-      // Fetch points directly (fixes 414 URI Too Long error when roster is large)
-      let scoreQuery = supabase
-        .from('points')
-        .select('student_id, points');
+      // Fetch points using paginated loop to bypass 1000-row cap and get 100% of rows
+      let scores = [];
+      let pStart = 0;
+      const pLimit = 1000;
+      let pHasMore = true;
 
-      if (leaderboardPeriod === 'monthly') {
-        scoreQuery = scoreQuery.eq('month', activeMonth);
+      while (pHasMore) {
+        let scoreQuery = supabase
+          .from('points')
+          .select('student_id, points')
+          .order('id')
+          .range(pStart, pStart + pLimit - 1);
+
+        if (leaderboardPeriod === 'monthly') {
+          scoreQuery = scoreQuery.eq('month', activeMonth);
+        }
+
+        const { data: pBatch, error: sErr } = await scoreQuery;
+        if (sErr) throw sErr;
+
+        if (pBatch && pBatch.length > 0) {
+          scores = scores.concat(pBatch);
+          pStart += pLimit;
+          if (pBatch.length < pLimit) pHasMore = false;
+        } else {
+          pHasMore = false;
+        }
       }
-      const { data: scores, error: sErr } = await scoreQuery;
-      if (sErr) throw sErr;
 
       const scoreTotals = {};
       scores?.forEach(sc => {

@@ -823,17 +823,35 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
 
       const studentIds = roster.map(s => s.id);
 
-      // Get points
-      let query = supabase
-        .from('points')
-        .select('student_id, points');
+      // Get points using paginated loop to ensure full cumulative accuracy
+      let scores = [];
+      let pStart = 0;
+      const pLimit = 1000;
+      let pHasMore = true;
 
-      if (leaderboardMode === 'monthly') {
-        query = query.eq('month', activeMonth);
-      } // cumulative reads all months
+      while (pHasMore) {
+        let query = supabase
+          .from('points')
+          .select('student_id, points')
+          .in('student_id', studentIds)
+          .order('id')
+          .range(pStart, pStart + pLimit - 1);
 
-      const { data: scores, error: sErr } = await query.in('student_id', studentIds);
-      if (sErr) throw sErr;
+        if (leaderboardMode === 'monthly') {
+          query = query.eq('month', activeMonth);
+        }
+
+        const { data: pBatch, error: sErr } = await query;
+        if (sErr) throw sErr;
+
+        if (pBatch && pBatch.length > 0) {
+          scores = scores.concat(pBatch);
+          pStart += pLimit;
+          if (pBatch.length < pLimit) pHasMore = false;
+        } else {
+          pHasMore = false;
+        }
+      }
 
       // Group & aggregate scores
       const scoreTotals = {};
