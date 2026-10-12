@@ -78,6 +78,7 @@ function AdminDashboard({ user, onLogout }) {
   const [leaderboardTab, setLeaderboardTab] = useState('centres'); // 'centres', 'students', 'classes'
   const [leaderboardPeriod, setLeaderboardPeriod] = useState('monthly'); // 'monthly', 'cumulative'
   const [leaderboardClass, setLeaderboardClass] = useState('M1'); // 'M1', 'M2', 'M3', 'M4', 'M5'
+  const [centreRankBy, setCentreRankBy] = useState('average'); // 'average' or 'total'
   const [stateRankings, setStateRankings] = useState([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
@@ -105,7 +106,7 @@ function AdminDashboard({ user, onLogout }) {
     if (activeTab === 'leaderboard') {
       fetchStateLeaderboards();
     }
-  }, [activeTab, leaderboardTab, leaderboardPeriod, activeMonth, leaderboardClass]);
+  }, [activeTab, leaderboardTab, leaderboardPeriod, activeMonth, leaderboardClass, centreRankBy]);
 
   // Fetch global config settings
   const fetchGlobalConfig = async () => {
@@ -1231,6 +1232,7 @@ function AdminDashboard({ user, onLogout }) {
           });
 
           const average = studentCount === 0 ? 0 : parseFloat((sumScores / studentCount).toFixed(2));
+          const total = parseFloat(sumScores.toFixed(1));
 
           return {
             id: centre.id,
@@ -1238,8 +1240,9 @@ function AdminDashboard({ user, onLogout }) {
             code: centre.code,
             place: `${centre.place}, ${centre.district}`,
             studentCount,
-            score: average, // uses 'score' key so it maps easily to podium render
-            totalScore: parseFloat(sumScores.toFixed(1))
+            score: centreRankBy === 'total' ? total : average, // primary score used for rank ordering
+            averageScore: average,
+            totalScore: total
           };
         })
         .sort((a, b) => b.score - a.score);
@@ -2286,12 +2289,13 @@ function AdminDashboard({ user, onLogout }) {
             <h3 className="card-title">State Level Leaderboard Portal</h3>
             
             {/* Subtabs filter */}
+            {/* Subtabs filter */}
             <div className="tab-filter-container">
               <button
                 className={`tab-filter-btn ${leaderboardTab === 'centres' ? 'tab-filter-btn-active' : ''}`}
                 onClick={() => setLeaderboardTab('centres')}
               >
-                Colleges (Average)
+                Colleges ({centreRankBy === 'total' ? 'Total Marks' : 'Average'})
               </button>
               <button
                 className={`tab-filter-btn ${leaderboardTab === 'students' ? 'tab-filter-btn-active' : ''}`}
@@ -2308,21 +2312,32 @@ function AdminDashboard({ user, onLogout }) {
             </div>
 
             {/* Mode selection row */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
               <select 
                 value={leaderboardPeriod} 
                 onChange={(e) => setLeaderboardPeriod(e.target.value)}
-                style={{ flex: 1 }}
+                style={{ flex: 1, minWidth: '150px' }}
               >
                 <option value="monthly">Monthly Rankings</option>
                 <option value="cumulative">Cumulative Rankings</option>
               </select>
 
+              {leaderboardTab === 'centres' && (
+                <select 
+                  value={centreRankBy} 
+                  onChange={(e) => setCentreRankBy(e.target.value)}
+                  style={{ flex: 1, minWidth: '180px' }}
+                >
+                  <option value="average">Rank by Average Points (per student)</option>
+                  <option value="total">Rank by Total Marks (aggregate)</option>
+                </select>
+              )}
+
               {leaderboardTab === 'classes' && (
                 <select 
                   value={leaderboardClass} 
                   onChange={(e) => setLeaderboardClass(e.target.value)}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: '150px' }}
                 >
                   <option value="M1">Class M1 State Ranks</option>
                   <option value="M2">Class M2 State Ranks</option>
@@ -2336,7 +2351,7 @@ function AdminDashboard({ user, onLogout }) {
                 <select 
                   value={activeMonth} 
                   onChange={(e) => setActiveMonth(e.target.value)}
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minWidth: '150px' }}
                 >
                   {availableMonths.map(m => {
                     const monthVal = typeof m === 'string' ? m : m.month;
@@ -2345,6 +2360,33 @@ function AdminDashboard({ user, onLogout }) {
                 </select>
               )}
             </div>
+
+            {/* College ranking criteria toggle bar */}
+            {leaderboardTab === 'centres' && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '20px', padding: '10px 14px', background: 'var(--bg-glass-subtle, rgba(0,0,0,0.02))', borderRadius: '10px', border: '1px solid var(--border, #e2e8f0)' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>
+                  Ranking Order: <strong>{centreRankBy === 'total' ? '🏆 Total Marks (Sum of all students)' : '🎯 Average Points (Total ÷ Enrolled Students)'}</strong>
+                </span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    className={`tab-filter-btn ${centreRankBy === 'average' ? 'tab-filter-btn-active' : ''}`}
+                    style={{ padding: '4px 12px', fontSize: '0.82rem', borderRadius: '6px' }}
+                    onClick={() => setCentreRankBy('average')}
+                  >
+                    🎯 Average Points
+                  </button>
+                  <button
+                    type="button"
+                    className={`tab-filter-btn ${centreRankBy === 'total' ? 'tab-filter-btn-active' : ''}`}
+                    style={{ padding: '4px 12px', fontSize: '0.82rem', borderRadius: '6px' }}
+                    onClick={() => setCentreRankBy('total')}
+                  >
+                    🏆 Total Marks
+                  </button>
+                </div>
+              </div>
+            )}
 
             {loadingLeaderboard ? (
               <div style={{ textAlign: 'center', padding: '50px 0', color: 'var(--text-muted)' }}>
@@ -2371,7 +2413,9 @@ function AdminDashboard({ user, onLogout }) {
                       <div className="podium-subtext">{stateRankings[0].place || stateRankings[0].centreName}</div>
                       <div className="podium-score">
                         {leaderboardTab === 'centres'
-                          ? `Avg: ${stateRankings[0].score} | Total: ${stateRankings[0].totalScore || 0}`
+                          ? (centreRankBy === 'total'
+                              ? `Total: ${stateRankings[0].totalScore} pts | Avg: ${stateRankings[0].averageScore}`
+                              : `Avg: ${stateRankings[0].averageScore} | Total: ${stateRankings[0].totalScore || 0} pts`)
                           : `${stateRankings[0].score} pts`
                         }
                       </div>
@@ -2391,7 +2435,9 @@ function AdminDashboard({ user, onLogout }) {
                       <div className="podium-subtext">{stateRankings[1].place || stateRankings[1].centreName}</div>
                       <div className="podium-score">
                         {leaderboardTab === 'centres'
-                          ? `Avg: ${stateRankings[1].score} | Total: ${stateRankings[1].totalScore || 0}`
+                          ? (centreRankBy === 'total'
+                              ? `Total: ${stateRankings[1].totalScore} pts | Avg: ${stateRankings[1].averageScore}`
+                              : `Avg: ${stateRankings[1].averageScore} | Total: ${stateRankings[1].totalScore || 0} pts`)
                           : `${stateRankings[1].score} pts`
                         }
                       </div>
@@ -2411,7 +2457,9 @@ function AdminDashboard({ user, onLogout }) {
                       <div className="podium-subtext">{stateRankings[2].place || stateRankings[2].centreName}</div>
                       <div className="podium-score">
                         {leaderboardTab === 'centres'
-                          ? `Avg: ${stateRankings[2].score} | Total: ${stateRankings[2].totalScore || 0}`
+                          ? (centreRankBy === 'total'
+                              ? `Total: ${stateRankings[2].totalScore} pts | Avg: ${stateRankings[2].averageScore}`
+                              : `Avg: ${stateRankings[2].averageScore} | Total: ${stateRankings[2].totalScore || 0} pts`)
                           : `${stateRankings[2].score} pts`
                         }
                       </div>
@@ -2433,7 +2481,7 @@ function AdminDashboard({ user, onLogout }) {
                           <span className="leaderboard-sub">
                             {leaderboardTab === 'students' || leaderboardTab === 'classes'
                               ? `Class ${item.class} • ${item.centreName} • Reg: ${item.reg}`
-                              : `District: ${item.place} • Students: ${item.studentCount} • Total Points: ${item.totalScore || 0}`
+                              : `District: ${item.place} • Students: ${item.studentCount} • ${centreRankBy === 'total' ? `Avg: ${item.averageScore}` : `Total Points: ${item.totalScore || 0}`}`
                             }
                           </span>
                         </div>
@@ -2441,7 +2489,9 @@ function AdminDashboard({ user, onLogout }) {
                       <div className="leaderboard-right">
                         <span className="leaderboard-score-pill">
                           {leaderboardTab === 'centres' 
-                            ? `Avg: ${item.score} pts` 
+                            ? (centreRankBy === 'total' 
+                                ? `${item.totalScore} pts` 
+                                : `Avg: ${item.averageScore} pts`) 
                             : `${item.score} pts`
                           }
                         </span>
