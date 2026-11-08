@@ -131,6 +131,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
   const [uploadProgress, setUploadProgress] = useState({ isUploading: false, current: 0, total: 0, percent: 0, fileName: '', status: '' });
   const [submittedReportsList, setSubmittedReportsList] = useState([]);
   const [reportSuccessMsg, setReportSuccessMsg] = useState('');
+  const [deletingReportId, setDeletingReportId] = useState(null);
 
   // Local Leaderboards State
   const [leaderboardMode, setLeaderboardMode] = useState('monthly'); // 'monthly' or 'cumulative'
@@ -646,6 +647,13 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
 
+    // Advisory warning for large files (> 25MB)
+    const largeFiles = files.filter(f => f.size > 25 * 1024 * 1024);
+    if (largeFiles.length > 0) {
+      const names = largeFiles.map(f => `• ${f.name} (${(f.size / (1024 * 1024)).toFixed(1)} MB)`).join('\n');
+      alert(`⚠️ Notice: Large media detected:\n${names}\n\nGoogle Drive uploads may fail or time out on files over 25MB. If you encounter an upload error, please compress the video before attaching.`);
+    }
+
     setProgramPhotos(prev => [...prev, ...files]);
 
     // Generate previews
@@ -683,6 +691,8 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       return;
     }
 
+    let createdReportId = null;
+
     try {
       setSubmittingReport(true);
       setReportSuccessMsg('');
@@ -709,6 +719,7 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
         .single();
 
       if (rError) throw rError;
+      createdReportId = newReport.id;
 
       // 2. Upload media (photos & videos) to 5TB Google Drive
       if (programPhotos.length > 0) {
@@ -740,14 +751,20 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
               status: `Uploaded "${file.name}" successfully! (${i + 1}/${total})`
             });
           } catch (uploadErr) {
-            console.error('Google Drive upload fallback for:', file.name, uploadErr);
-            // Fallback: inline base64 if network disconnected
-            const base64Fallback = await new Promise((resolve) => {
-              const r = new FileReader();
-              r.onload = () => resolve(r.result);
-              r.readAsDataURL(file);
-            });
-            photoUrls.push(base64Fallback);
+            console.error('Google Drive upload error for:', file.name, uploadErr);
+            // Fallback: only allow inline base64 for small images (< 1.5MB)
+            // NEVER dump massive videos or large files as base64 into the database!
+            const isSmallImage = file.type.startsWith('image/') && file.size < 1.5 * 1024 * 1024;
+            if (isSmallImage) {
+              const base64Fallback = await new Promise((resolve) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.readAsDataURL(file);
+              });
+              photoUrls.push(base64Fallback);
+            } else {
+              throw new Error(`Google Drive upload failed for "${file.name}" (${uploadErr.message || 'Connection timed out'}). Videos or files larger than 25MB must be compressed before uploading.`);
+            }
           }
         }
 
@@ -797,9 +814,60 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
       }, 4000);
     } catch (err) {
       alert('Error submitting report: ' + err.message);
+      // Clean up orphaned report record if media upload failed
+      if (createdReportId) {
+        try {
+          await supabase.from('program_photos').delete().eq('report_id', createdReportId);
+          await supabase.from('program_reports').delete().eq('id', createdReportId);
+        } catch {}
+      }
       setUploadProgress({ isUploading: false, current: 0, total: 0, percent: 0, fileName: '', status: '' });
     } finally {
       setSubmittingReport(false);
+    }
+  };
+
+  // Coordinator: Delete a report and its attachments
+  const handleDeleteReport = async (reportId, reportName) => {
+    if (!isSubmissionAllowed) {
+      alert('Modifications are locked for this month. Please contact the administrator.');
+      return;
+    }
+
+    const confirmMsg = `Are you sure you want to delete the report "${reportName}"?\n\nThis will permanently delete this report and any attached photos or files. This action cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setDeletingReportId(reportId);
+
+      // 1. Delete associated attachments
+      await supabase
+        .from('program_photos')
+        .delete()
+        .eq('report_id', reportId);
+
+      // 2. Delete the program report record
+      const { error } = await supabase
+        .from('program_reports')
+        .delete()
+        .eq('id', reportId)
+        .eq('study_centre_code', profile.code);
+
+      if (error) throw error;
+
+      // Refresh reports list
+      await fetchSubmittedReports();
+
+      // Refresh checklist status board so the count and indicators update
+      if (typeof fetchStatusBoard === 'function') {
+        fetchStatusBoard();
+      }
+
+      alert('Report deleted successfully.');
+    } catch (err) {
+      alert('Error deleting report: ' + err.message);
+    } finally {
+      setDeletingReportId(null);
     }
   };
 
@@ -1541,11 +1609,34 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {submittedReportsList.map(rep => (
                     <div key={rep.id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '14px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <h4 style={{ color: 'var(--dark-text)', fontSize: '14px', fontWeight: '700' }}>{rep.name}</h4>
-                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{rep.date}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                        <div>
+                          <h4 style={{ color: 'var(--dark-text)', fontSize: '14px', fontWeight: '700', margin: 0 }}>{rep.name}</h4>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Conducted Date: {rep.date}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteReport(rep.id, rep.name)}
+                          disabled={deletingReportId === rep.id}
+                          style={{
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            border: '1px solid #fca5a5',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                          title="Delete this report"
+                        >
+                          {deletingReportId === rep.id ? 'Deleting...' : '🗑️ Delete'}
+                        </button>
                       </div>
-                      <p style={{ fontSize: '13px', color: 'var(--text-main)', marginTop: '4px', whiteSpace: 'pre-wrap' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-main)', marginTop: '6px', whiteSpace: 'pre-wrap' }}>
                         {rep.description}
                       </p>
                       {/* Media row */}
@@ -1555,6 +1646,9 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                             const isDrive = ph.photo_url.includes('drive.google.com');
                             const driveIdMatch = ph.photo_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || ph.photo_url.match(/id=([a-zA-Z0-9_-]+)/);
                             const thumbUrl = isDrive && driveIdMatch ? `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w800` : ph.photo_url;
+                            const isDirectVideo = ph.photo_url.startsWith('data:video/');
+                            const isDirectPdf = ph.photo_url.startsWith('data:application/pdf');
+
                             return (
                               <a
                                 key={ph.id}
@@ -1574,17 +1668,27 @@ function CoordinatorDashboard({ user, profile, onProfileUpdate, onLogout }) {
                                   backgroundColor: '#f8fafc',
                                   flexShrink: 0
                                 }}
-                                title="Click to view / download from Google Drive"
+                                title={isDrive ? "Click to view / download from Google Drive" : "Click to view media attachment"}
                               >
-                                <img 
-                                  src={thumbUrl} 
-                                  alt="Program Media" 
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                    e.target.parentNode.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;font-size:10px;font-weight:bold;color:#713F98;text-align:center;">🎥<br/>Drive</div>';
-                                  }}
-                                />
+                                {isDirectVideo ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '10px', fontWeight: 'bold', color: '#713F98', textAlign: 'center' }}>
+                                    🎥<br/>Video
+                                  </div>
+                                ) : isDirectPdf ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '10px', fontWeight: 'bold', color: '#b91c1c', textAlign: 'center' }}>
+                                    📄<br/>PDF
+                                  </div>
+                                ) : (
+                                  <img 
+                                    src={thumbUrl} 
+                                    alt="Program Media" 
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      e.target.parentNode.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;font-size:10px;font-weight:bold;color:#713F98;text-align:center;">🎥<br/>Media</div>';
+                                    }}
+                                  />
+                                )}
                               </a>
                             );
                           })}

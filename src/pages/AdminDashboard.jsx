@@ -1337,6 +1337,44 @@ function AdminDashboard({ user, onLogout }) {
     window.print();
   };
 
+  // Admin: Delete a single report and its attachments
+  const handleDeleteReportByAdmin = async (reportId, reportName) => {
+    const confirmMsg = `Are you sure you want to delete the report "${reportName}" for "${printingReport?.centre?.name}"?\n\nThis will permanently delete this report and any attached photos or files. This cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      // 1. Delete associated photos/media records
+      await supabase
+        .from('program_photos')
+        .delete()
+        .eq('report_id', reportId);
+
+      // 2. Delete the program report record
+      const { error } = await supabase
+        .from('program_reports')
+        .delete()
+        .eq('id', reportId);
+
+      if (error) throw error;
+
+      // Update state in memory
+      const updatedReports = printingReport.reports.filter(r => r.id !== reportId);
+      setPrintingReport(prev => ({
+        ...prev,
+        reports: updatedReports
+      }));
+
+      // Refresh available months if all reports for this month were deleted
+      if (updatedReports.length === 0 && selectedReportCentre) {
+        handleSelectReportCentre(selectedReportCentre);
+      }
+
+      alert('Report deleted successfully.');
+    } catch (err) {
+      alert('Error deleting report: ' + err.message);
+    }
+  };
+
   // Status Matrix Filter helper
   const filteredMatrix = matrixData.filter(item => {
     const matchesSearch = item.name.toLowerCase().includes(filterSearch.toLowerCase()) || 
@@ -1402,8 +1440,33 @@ function AdminDashboard({ user, onLogout }) {
             <div>
               {printingReport.reports.map((rep, idx) => (
                 <div className="print-program-card" key={rep.id}>
-                  <h2 className="print-program-title">{idx + 1}. {rep.name}</h2>
-                  <div className="print-program-meta">Conducted Date: {rep.date}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                    <div>
+                      <h2 className="print-program-title" style={{ margin: 0 }}>{idx + 1}. {rep.name}</h2>
+                      <div className="print-program-meta" style={{ marginTop: '2px' }}>Conducted Date: {rep.date}</div>
+                    </div>
+                    <button
+                      type="button"
+                      className="no-print"
+                      onClick={() => handleDeleteReportByAdmin(rep.id, rep.name)}
+                      style={{
+                        background: '#fee2e2',
+                        color: '#dc2626',
+                        border: '1px solid #fca5a5',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                      title="Permanently delete this report"
+                    >
+                      🗑️ Delete Report
+                    </button>
+                  </div>
                   <p className="print-program-desc">{rep.description}</p>
                   
                   {/* Media attachments */}
@@ -1414,17 +1477,30 @@ function AdminDashboard({ user, onLogout }) {
                           const isDrive = ph.photo_url.includes('drive.google.com');
                           const driveIdMatch = ph.photo_url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || ph.photo_url.match(/id=([a-zA-Z0-9_-]+)/);
                           const thumbUrl = isDrive && driveIdMatch ? `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w800` : ph.photo_url;
+                          const isDirectVideo = ph.photo_url.startsWith('data:video/');
+                          const isDirectPdf = ph.photo_url.startsWith('data:application/pdf');
+
                           return (
                             <div className="print-photo-wrapper" key={ph.id}>
-                              <a href={ph.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', height: '100%', textDecoration: 'none' }} title="Click to open media in Google Drive">
-                                <img 
-                                  src={thumbUrl} 
-                                  alt="Activity attachment" 
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                    e.target.parentNode.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;background:#f1f5f9;border-radius:6px;color:#713F98;font-weight:bold;font-size:12px;text-align:center;padding:8px;">🎥<br/>Google Drive Video/Media<br/><span style=\"font-size:10px;color:#666;font-weight:normal;\">Click to open</span></div>';
-                                  }}
-                                />
+                              <a href={ph.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', height: '100%', textDecoration: 'none' }} title="Click to open media">
+                                {isDirectVideo ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f1f5f9', borderRadius: '6px', color: '#713F98', fontWeight: 'bold', fontSize: '11px', textAlign: 'center', padding: '6px' }}>
+                                    🎥<br/>Direct Video<br/><span style={{ fontSize: '9px', color: '#666', fontWeight: 'normal' }}>Click to view</span>
+                                  </div>
+                                ) : isDirectPdf ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', background: '#f8fafc', borderRadius: '6px', color: '#b91c1c', fontWeight: 'bold', fontSize: '11px', textAlign: 'center', padding: '6px' }}>
+                                    📄<br/>PDF Document<br/><span style={{ fontSize: '9px', color: '#666', fontWeight: 'normal' }}>Click to open</span>
+                                  </div>
+                                ) : (
+                                  <img 
+                                    src={thumbUrl} 
+                                    alt="Activity attachment" 
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                      e.target.parentNode.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:120px;background:#f1f5f9;border-radius:6px;color:#713F98;font-weight:bold;font-size:12px;text-align:center;padding:8px;">🎥<br/>Google Drive Video/Media<br/><span style=\"font-size:10px;color:#666;font-weight:normal;\">Click to open</span></div>';
+                                    }}
+                                  />
+                                )}
                               </a>
                             </div>
                           );
@@ -1434,22 +1510,40 @@ function AdminDashboard({ user, onLogout }) {
                       {/* Clickable Google Drive Links Section for PDF Export */}
                       <div className="print-drive-links-box" style={{ marginTop: '10px', padding: '8px 12px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
                         <div style={{ fontSize: '9pt', fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}>
-                          🔗 Google Drive Attachments ({rep.program_photos.length}):
+                          🔗 Program Attachments & Google Drive Links ({rep.program_photos.length}):
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                          {rep.program_photos.map((ph, pIdx) => (
-                            <div key={ph.id} style={{ fontSize: '8.5pt', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ color: '#64748b' }}>Attachment {pIdx + 1}:</span>
-                              <a 
-                                href={ph.photo_url} 
-                                target="_blank" 
-                                rel="noopener noreferrer" 
-                                style={{ color: '#0284c7', textDecoration: 'underline', wordBreak: 'break-all', fontWeight: '500' }}
-                              >
-                                {ph.photo_url}
-                              </a>
-                            </div>
-                          ))}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {rep.program_photos.map((ph, pIdx) => {
+                            const isBase64 = ph.photo_url.startsWith('data:');
+                            const isVideo = ph.photo_url.startsWith('data:video/');
+                            const isPdf = ph.photo_url.startsWith('data:application/pdf');
+                            const isImage = ph.photo_url.startsWith('data:image/');
+
+                            let displayLabel = ph.photo_url;
+                            if (isVideo) {
+                              displayLabel = '🎬 Direct Video Attachment (Click to View / Download)';
+                            } else if (isPdf) {
+                              displayLabel = '📄 Direct PDF Document (Click to Open)';
+                            } else if (isImage) {
+                              displayLabel = '🖼️ Direct Image Attachment (Click to View)';
+                            } else if (isBase64) {
+                              displayLabel = '📎 Embedded Media Attachment (Click to Open)';
+                            }
+
+                            return (
+                              <div key={ph.id} style={{ fontSize: '8.5pt', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ color: '#64748b', flexShrink: 0 }}>Attachment {pIdx + 1}:</span>
+                                <a 
+                                  href={ph.photo_url} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer" 
+                                  style={{ color: '#0284c7', textDecoration: 'underline', wordBreak: isBase64 ? 'normal' : 'break-all', fontWeight: '500' }}
+                                >
+                                  {displayLabel}
+                                </a>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
